@@ -1,0 +1,4 @@
+cache/
+*.pyc
+*.egg
+*.whl
