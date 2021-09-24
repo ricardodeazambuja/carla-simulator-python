@@ -16,16 +16,27 @@ import glob
 import os
 import sys
 
-import carla
-
 import random
 import math
-
-import pygame
+import queue
 
 import numpy as np
 
-import queue
+import pygame
+from pygame.locals import K_SPACE
+from pygame.locals import K_DOWN
+from pygame.locals import K_LEFT
+from pygame.locals import K_RIGHT
+from pygame.locals import K_UP
+from pygame.locals import K_q
+from pygame.locals import K_e
+from pygame.locals import K_w
+from pygame.locals import K_s
+from pygame.locals import K_a
+from pygame.locals import K_d
+
+
+import carla
 
 
 class CarlaSyncMode(object):
@@ -107,18 +118,6 @@ def should_quit():
             if event.key == pygame.K_ESCAPE:
                 return True
     return False
-
-from pygame.locals import K_SPACE
-from pygame.locals import K_DOWN
-from pygame.locals import K_LEFT
-from pygame.locals import K_RIGHT
-from pygame.locals import K_UP
-from pygame.locals import K_q
-from pygame.locals import K_e
-from pygame.locals import K_w
-from pygame.locals import K_s
-from pygame.locals import K_a
-from pygame.locals import K_d
 
 class SpectatorController():
     def __init__(self, world):
