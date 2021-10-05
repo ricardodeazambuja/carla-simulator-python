@@ -135,8 +135,20 @@ def main():
     print("Available maps:")
     print('\n'.join(client.get_available_maps()))
 
-    world = client.load_world('Town10HD') #it takes a while to load, so the client timeout needs to afford that.
+    world = client.load_world('Town10HD_Opt') #it takes a while to load, so the client timeout needs to afford that.
     # world = client.get_world()
+
+    env_objs = world.get_environment_objects(carla.CityObjectLabel.Any)
+    for o in env_objs:
+        print(o.id, o.name, o.type)
+
+    # # Toggle buildings off
+    # world.enable_environment_objects(objects_to_toggle, False) # objects_to_toggle => a set of object ids
+    # # Toggle buildings on
+    # world.enable_environment_objects(objects_to_toggle, True) # objects_to_toggle => a set of object ids
+
+    # map = world.get_map()
+    # spawn_points = map.get_spawn_points()
 
     try:
         m = world.get_map()
@@ -147,35 +159,38 @@ def main():
         #         print('  - {}'.format(attr))
         # exit(0)
 
-        start_pose = random.choice(m.get_spawn_points())
+        start_pose = random.choice(m.get_spawn_points()) # selects a random place to start, considering the possible spawn points.
         waypoint = m.get_waypoint(start_pose.location)
 
         blueprint_library = world.get_blueprint_library()
         vehicle = world.spawn_actor(
             random.choice(blueprint_library.filter('vehicle.*')),
             start_pose)
+        color = random.choice(vehicle.get_attribute('color').recommended_values)
+        vehicle.set_attribute('color', color)
         actor_list.append(vehicle)
 
         # Usually, physics would be off (False) allowing the vehicles to go through
         # wall and other vehicles...
-        vehicle.set_simulate_physics(True)
+        vehicle.set_simulate_physics(False)
         # https://carla.readthedocs.io/en/0.9.12/tuto_G_control_vehicle_physics/
-        physics_control = vehicle.get_physics_control()
-        physics_control.mass = 100000
-        # Apply Vehicle Physics Control for the vehicle
-        vehicle.apply_physics_control(physics_control)
-        print(physics_control)
+        # physics_control = vehicle.get_physics_control()
+        # physics_control.mass = 100000
+        # # Apply Vehicle Physics Control for the vehicle
+        # vehicle.apply_physics_control(physics_control)
+        # print(physics_control)
 
-
-        camera_rgb = world.spawn_actor(
-            blueprint_library.find('sensor.camera.rgb'),
-            carla.Transform(carla.Location(x=-5.5, z=2.8), carla.Rotation(pitch=-15)),
-            attach_to=vehicle)
 
         # camera_rgb = world.spawn_actor(
         #     blueprint_library.find('sensor.camera.rgb'),
-        #     carla.Transform(carla.Location(x=-5.5, z=2.8), carla.Rotation(pitch=-15)))
+        #     carla.Transform(carla.Location(x=0, y=0, z=300), carla.Rotation(pitch=-90)))
         # actor_list.append(camera_rgb)
+
+        camera_rgb = world.spawn_actor(
+            blueprint_library.find('sensor.camera.rgb'),
+            carla.Transform(carla.Location(x=-5.5, z=10), carla.Rotation(pitch=-15)),
+            attach_to=vehicle)
+        actor_list.append(camera_rgb)
 
         # camera_semseg = world.spawn_actor(
         #     blueprint_library.find('sensor.camera.semantic_segmentation'),
@@ -186,6 +201,8 @@ def main():
         # Create a synchronous mode context.
         # with CarlaSyncMode(world, camera_rgb, camera_semseg, fps=30) as sync_mode:
         xpos = 0
+        waypoint_counter = 0
+        waypoint_counter_max = 50
         with CarlaSyncMode(world, camera_rgb, fps=30) as sync_mode:
             while True:
                 if should_quit():
@@ -198,6 +215,13 @@ def main():
 
                 # Choose the next waypoint and update the car location.
                 waypoint = random.choice(waypoint.next(1.5))
+                # waypoint_counter += 1
+                # if waypoint_counter <= waypoint_counter_max:
+                #     waypoint = waypoint.next(1.5)[0]
+                # elif waypoint_counter > waypoint_counter_max and waypoint_counter <= waypoint_counter_max*2:
+                #     waypoint = waypoint.previous(1.5)[0] # randomly select from a list of waypoints in the opposit direction of the lane
+                # else:
+                #     waypoint_counter = 0
                 vehicle.set_transform(waypoint.transform)
                 # camera_rgb.set_transform(carla.Transform(carla.Location(x=xpos, y=10, z=10), carla.Rotation(pitch=-85)))
                 # vehicle.set_transform(carla.Transform(carla.Location(x=xpos)))
