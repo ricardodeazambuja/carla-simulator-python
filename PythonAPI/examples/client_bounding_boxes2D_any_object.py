@@ -37,6 +37,7 @@ import glob
 import os
 import sys
 import math
+from time import sleep
 
 try:
     sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
@@ -229,7 +230,7 @@ class ClientSideBoundingBoxes(object):
         Transforms coordinates of a level_object bounding box to world.
         """
 
-        bb_transform = carla.Transform(level_object.bounding_box.location)
+        bb_transform = carla.Transform(level_object.bounding_box.location, level_object.bounding_box.rotation)
         bb_world_matrix = ClientSideBoundingBoxes.get_matrix(bb_transform.location,bb_transform.rotation)
         world_cords = np.dot(bb_world_matrix, np.transpose(cords))
         return world_cords
@@ -310,6 +311,9 @@ class BasicSynchronousClient(object):
         """
         Sets synchronous mode.
         """
+        while not self.world:
+            print("Where is the carla server?!?!?")
+            sleep(.1) # wait for the simulator
 
         settings = self.world.get_settings()
         settings.synchronous_mode = synchronous_mode
