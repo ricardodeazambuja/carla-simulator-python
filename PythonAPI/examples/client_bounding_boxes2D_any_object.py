@@ -134,7 +134,7 @@ class ClientSideBoundingBoxes(object):
 
     @staticmethod
     def get_bounding_boxes(world, camera, actor_type=carla.CityObjectLabel.Vehicles, max_dist=50,
-                           n_samples_per_axis=10, safety_margin=0.5, max_cast_dist=2.0):
+                           n_samples_per_axis=10, safety_margin=0.8, max_cast_dist=2.0):
         """
         Creates 3D bounding boxes based on carla actor_type and camera.
         """
@@ -330,7 +330,7 @@ class BasicSynchronousClient(object):
         Sets calibration for client-side boxes rendering.
         """
 
-        camera_transform = carla.Transform(carla.Location(x=6, y=0, z=1.5), carla.Rotation(yaw=0, pitch=0))
+        camera_transform = carla.Transform(carla.Location(x=0.5, y=0, z=3), carla.Rotation(yaw=0, pitch=-25))
         self.camera = self.world.spawn_actor(self.camera_blueprint(), camera_transform, attach_to=self.car)
         weak_self = weakref.ref(self)
         self.camera.listen(lambda image: weak_self().set_image(weak_self, image))
@@ -431,6 +431,8 @@ class BasicSynchronousClient(object):
                                                                             actor_type=carla.CityObjectLabel.Vehicles)
                 
                 print(f"Bounding boxes found: {len(bounding_boxes)}")
+
+                ClientSideBoundingBoxes.draw_bounding_boxes(self.display, bounding_boxes, BB_COLOR=(0,255,0))
 
                 bboxes2D = []
                 for bbox in bounding_boxes:
