@@ -7,8 +7,13 @@
 
 
 #
-# Modified for 2D (and using masks)
-#
+# Modified for 2D, testing if the object is not "badly" occluded
+# get_bounding_boxes now has:
+# - max_dist (50) it will consider objects
+# - n_samples_per_axis (10) it will random sample for ray casting
+# - safety_margin (0.7) used for ray casting to shrink the sampled 3D space
+# - max_cast_dist (2.0) because the surfaces are external and the points are anywhere
+
 
 """
 An example of client-side bounding boxes with basic car controls.
@@ -128,36 +133,57 @@ class ClientSideBoundingBoxes(object):
         display.blit(bb_surface, (0, 0))
 
     @staticmethod
-    def get_bounding_boxes(camera, world, actor_type=carla.CityObjectLabel.Vehicles):
+    def get_bounding_boxes(world, camera, actor_type=carla.CityObjectLabel.Vehicles, max_dist=50,
+                           n_samples_per_axis=10, safety_margin=0.5, max_cast_dist=2.0):
         """
         Creates 3D bounding boxes based on carla actor_type and camera.
         """
 
         level_objects = world.get_environment_objects(object_type=actor_type)
-        bounding_boxes = [bbox for bbox in [ClientSideBoundingBoxes.get_bounding_box(level_object, camera) 
+        bounding_boxes = [bbox for bbox in [ClientSideBoundingBoxes.get_bounding_box(world, level_object, camera, actor_type, max_dist, 
+                                                                                     n_samples_per_axis, safety_margin, max_cast_dist) 
                                                                                     for level_object in level_objects]
                                                                                     if len(bbox)]
         # filter out objects that are behind the camera
         bounding_boxes = [bb for bb in bounding_boxes if all(bb[:, 2] > 0)]
+        # It needs to verify more than one ray and consider only the ones VISIBLE by the camera. The bbox output has that.
         return bounding_boxes
 
     @staticmethod
-    def get_bounding_box(level_object, camera, max_dist=50):
+    def get_bounding_box(world, level_object, camera, actor_type, max_dist, 
+                         n_samples_per_axis, safety_margin, max_cast_dist):
         """
         Returns 3D bounding box for a level_object based on camera view.
         """
         camera_loc = camera.get_transform().location
         level_object_loc = level_object.bounding_box.location
-        dist = math.sqrt((camera_loc.x-level_object_loc.x)**2+(camera_loc.y-level_object_loc.y)**2+(camera_loc.z-level_object_loc.z)**2)
-        if dist <= max_dist:
-            bb_cords = ClientSideBoundingBoxes._create_bb_points(level_object.bounding_box)
-            cords_x_y_z = ClientSideBoundingBoxes._level_object_to_sensor(bb_cords, level_object, camera)[:3, :]
-            cords_y_minus_z_x = np.concatenate([cords_x_y_z[1, :], -cords_x_y_z[2, :], cords_x_y_z[0, :]])
-            bbox = np.transpose(np.dot(camera.calibration, cords_y_minus_z_x))
-            camera_bbox = np.concatenate([bbox[:, 0] / bbox[:, 2], bbox[:, 1] / bbox[:, 2], bbox[:, 2]], axis=1)
-            return camera_bbox
-        else:
-            return []
+        level_object_loc_xyz = np.array([level_object_loc.x, level_object_loc.y, level_object_loc.z]).T
+        level_object_ext = level_object.bounding_box.extent
+        level_object_ext_xyz = np.array([level_object_ext.x, level_object_ext.y, level_object_ext.z]).T
+
+        dist = camera_loc.distance(level_object_loc)
+        if dist <= max_dist: # avoid processing everything in the level
+            print(dist)
+            sampled_bbox_values = level_object_loc_xyz + (np.random.rand(n_samples_per_axis,3)*2-1)*level_object_ext_xyz*safety_margin
+            sampled_locations = [carla.Location(*sample_i) for sample_i in sampled_bbox_values]
+            
+            ray_cast = []
+            for location_i in sampled_locations:
+                for labelled_pnt in world.cast_ray(camera_loc, location_i):
+                    if labelled_pnt.label == actor_type:
+                        dist_cast = labelled_pnt.location.distance(location_i)
+                        if dist_cast < max_cast_dist:
+                            ray_cast.append(True)
+
+            if any(ray_cast):
+                bb_cords = ClientSideBoundingBoxes._create_bb_points(level_object.bounding_box)
+                cords_x_y_z = ClientSideBoundingBoxes._level_object_to_sensor(bb_cords, level_object, camera)[:3, :]
+                cords_y_minus_z_x = np.concatenate([cords_x_y_z[1, :], -cords_x_y_z[2, :], cords_x_y_z[0, :]])
+                bbox = np.transpose(np.dot(camera.calibration, cords_y_minus_z_x))
+                camera_bbox = np.concatenate([bbox[:, 0] / bbox[:, 2], bbox[:, 1] / bbox[:, 2], bbox[:, 2]], axis=1)
+                return camera_bbox
+        
+        return []
 
     @staticmethod
     def _create_bb_points(bounding_box):
@@ -391,8 +417,8 @@ class BasicSynchronousClient(object):
                 pygame_clock.tick_busy_loop(20)
 
                 self.render(self.display)
-                bounding_boxes = ClientSideBoundingBoxes.get_bounding_boxes(self.camera, 
-                                                                            self.world,
+                bounding_boxes = ClientSideBoundingBoxes.get_bounding_boxes(self.world, 
+                                                                            self.camera,
                                                                             actor_type=carla.CityObjectLabel.Vehicles)
                 
                 bboxes2D = []
