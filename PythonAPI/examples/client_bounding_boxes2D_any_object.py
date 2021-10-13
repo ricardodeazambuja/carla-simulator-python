@@ -146,7 +146,7 @@ class ClientSideBoundingBoxes(object):
                                                                                     if len(bbox)]
         # filter out objects that are behind the camera
         bounding_boxes = [bb for bb in bounding_boxes if all(bb[:, 2] > 0)]
-        # It needs to verify more than one ray and consider only the ones VISIBLE by the camera. The bbox output has that.
+
         return bounding_boxes
 
     @staticmethod
@@ -163,13 +163,23 @@ class ClientSideBoundingBoxes(object):
 
         dist = camera_loc.distance(level_object_loc)
         if dist <= max_dist: # avoid processing everything in the level
-            print(dist)
             sampled_bbox_values = level_object_loc_xyz + (np.random.rand(n_samples_per_axis,3)*2-1)*level_object_ext_xyz*safety_margin
             sampled_locations = [carla.Location(*sample_i) for sample_i in sampled_bbox_values]
             
             ray_cast = []
             for location_i in sampled_locations:
-                for labelled_pnt in world.cast_ray(camera_loc, location_i):
+                # for labelled_pnt in world.cast_ray(camera_loc, location_i):
+                #     if labelled_pnt.label == actor_type:
+                #         dist_cast = labelled_pnt.location.distance(location_i)
+                #         if dist_cast < max_cast_dist:
+                #             ray_cast.append(True)
+
+                labelled_pnt = world.project_point(camera_loc, 
+                                                   carla.Vector3D(location_i.x-camera_loc.x, 
+                                                                  location_i.y-camera_loc.y, 
+                                                                  location_i.z-camera_loc.z), 
+                                                   dist)
+                if labelled_pnt:
                     if labelled_pnt.label == actor_type:
                         dist_cast = labelled_pnt.location.distance(location_i)
                         if dist_cast < max_cast_dist:
@@ -320,8 +330,7 @@ class BasicSynchronousClient(object):
         Sets calibration for client-side boxes rendering.
         """
 
-        camera_transform = carla.Transform(carla.Location(x=-5, y=0, z=3), carla.Rotation(yaw=0, pitch=-15))
-        # camera_transform = carla.Transform(carla.Location(x=0, y=5, z=3), carla.Rotation(yaw=-90, pitch=-15))
+        camera_transform = carla.Transform(carla.Location(x=6, y=0, z=1.5), carla.Rotation(yaw=0, pitch=0))
         self.camera = self.world.spawn_actor(self.camera_blueprint(), camera_transform, attach_to=self.car)
         weak_self = weakref.ref(self)
         self.camera.listen(lambda image: weak_self().set_image(weak_self, image))
@@ -421,10 +430,14 @@ class BasicSynchronousClient(object):
                                                                             self.camera,
                                                                             actor_type=carla.CityObjectLabel.Vehicles)
                 
+                print(f"Bounding boxes found: {len(bounding_boxes)}")
+
                 bboxes2D = []
                 for bbox in bounding_boxes:
                     bboxes2D.append([(bbox[:,0].max(),bbox[:,1].max()),
                                      (bbox[:,0].min(),bbox[:,1].min())])
+                # The bboxes2D will also return values that are OUTSIDE the camera view (negative values).
+
                 ClientSideBoundingBoxes.draw_bounding_boxes(self.display, bboxes2D) # standard color
 
 
