@@ -124,7 +124,7 @@ class ClientSideBoundingBoxes(object):
         display.blit(bb_surface, (0, 0))
 
     @staticmethod
-    def get_bounding_boxes(world, camera, actor_type=carla.CityObjectLabel.Vehicles, max_dist=50,
+    def get_bounding_boxes(world, camera, actor_type=carla.CityObjectLabel.Vehicles, max_dist=15,
                            n_samples_per_axis=10, safety_margin=0.8, max_cast_dist=2.0, display=None):
         """
         Creates 3D bounding boxes based on carla actor_type and camera.
@@ -163,31 +163,35 @@ class ClientSideBoundingBoxes(object):
             for location_i in sampled_locations:
                 
                 # Ray casting using cast_ray
-                labelled_pnt = (world.cast_ray(camera_loc, location_i) or [None])[0] # it will return an ordered list, but we want the first
+                # labelled_pnt = (world.cast_ray(camera_loc, location_i) or [None])[0] # it will return an ordered list, but we want the first
 
                 # Ray casting using project_point
-                # direction = carla.Vector3D(location_i.x-camera_loc.x, location_i.y-camera_loc.y, location_i.z-camera_loc.z)
-                # labelled_pnt = world.project_point(camera_loc, 
-                #                                    direction, 
-                #                                    dist*1.2) # it will return only the first surface
+                direction = carla.Vector3D(location_i.x-camera_loc.x, location_i.y-camera_loc.y, location_i.z-camera_loc.z)
+                labelled_pnt = world.project_point(camera_loc, 
+                                                   direction, 
+                                                   dist+max_cast_dist) # it will return only the first surface
 
 
                 world_coords = np.array([[location_i.x], [location_i.y], [location_i.z], [1]])
 
                 cam_coords_x_y_z = ClientSideBoundingBoxes._world_to_sensor(world_coords, camera)
-                cam_coords_y_minus_z_x = np.concatenate([cam_coords_x_y_z[1, :], -cam_coords_x_y_z[2, :], cam_coords_x_y_z[0, :]])
-                display_coords = np.transpose(np.dot(camera.calibration, cam_coords_y_minus_z_x))
-                display_coords = np.concatenate([display_coords[:, 0] / display_coords[:, 2], display_coords[:, 1] / display_coords[:, 2], display_coords[:, 2]], axis=1)
-                
-                # Debugging...
-                # print(f"{level_object.name} display coords: {display_coords}")
-                pygame.draw.circle(display, (255,0,0), (display_coords[0,0], display_coords[0,1]), 2.5)
+                if cam_coords_x_y_z[2] > 0: # ignores anything behind the camera
+                    cam_coords_y_minus_z_x = np.concatenate([cam_coords_x_y_z[1, :], -cam_coords_x_y_z[2, :], cam_coords_x_y_z[0, :]])
+                    display_coords = np.transpose(np.dot(camera.calibration, cam_coords_y_minus_z_x))
+                    display_coords = np.concatenate([display_coords[:, 0] / display_coords[:, 2], display_coords[:, 1] / display_coords[:, 2], display_coords[:, 2]], axis=1)
+                    
 
-                if labelled_pnt:
-                    if labelled_pnt.label == actor_type:
-                        dist_cast = labelled_pnt.location.distance(location_i)
-                        if dist_cast < max_cast_dist:
-                            ray_cast.append(True)
+                    # print(f"{level_object.name} display coords: {display_coords}")
+                    pygame.draw.circle(display, (255,0,0), (display_coords[0,0], display_coords[0,1]), 2.5) # red => sampled point
+
+                    if labelled_pnt:
+                        pygame.draw.circle(display, (255,165,0), (display_coords[0,0], display_coords[0,1]), 2.5) # orange => point hit something
+                        print(labelled_pnt.label)
+                        if labelled_pnt.label == actor_type:
+                            dist_cast = labelled_pnt.location.distance(location_i)
+                            if dist_cast < max_cast_dist:
+                                pygame.draw.circle(display, (0,255,0), (display_coords[0,0], display_coords[0,1]), 2.5) # green => point hit a label==actor_type
+                                ray_cast.append(True)
 
             if any(ray_cast):
                 bb_coords = ClientSideBoundingBoxes._create_bb_points(level_object.bounding_box)
@@ -334,7 +338,7 @@ class BasicSynchronousClient(object):
         Sets calibration for client-side boxes rendering.
         """
 
-        camera_transform = carla.Transform(carla.Location(x=0.5, y=0, z=3), carla.Rotation(yaw=0, pitch=-25))
+        camera_transform = carla.Transform(carla.Location(x=2, y=0, z=1.2), carla.Rotation(yaw=0, pitch=-15))
         self.camera = self.world.spawn_actor(self.camera_blueprint(), camera_transform, attach_to=self.car)
         weak_self = weakref.ref(self)
         self.camera.listen(lambda image: weak_self().set_image(weak_self, image))
@@ -445,6 +449,7 @@ class BasicSynchronousClient(object):
 
                 bboxes2D = []
                 for bbox in bounding_boxes:
+                    bbox[bbox < 0]
                     bboxes2D.append([(bbox[:,0].max(),bbox[:,1].max()),
                                      (bbox[:,0].min(),bbox[:,1].min())])
                 # The bboxes2D will also return values that are OUTSIDE the camera view (negative values).
