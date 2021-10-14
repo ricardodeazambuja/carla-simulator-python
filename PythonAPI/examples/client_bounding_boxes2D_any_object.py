@@ -74,16 +74,6 @@ except ImportError:
     raise RuntimeError('cannot import numpy, make sure numpy package is installed')
 
 
-import skimage.measure as measure
-
-# from https://arijitray1993.github.io/CARLA_tutorial/
-def get_bbox_from_mask(mask):
-    label_mask = measure.label(mask)
-    props = measure.regionprops(label_mask)
-    return [[(prop.bbox[3],prop.bbox[4]),(prop.bbox[0],prop.bbox[1])] for prop in props]
-
-
-
 VIEW_WIDTH = 1920//2
 VIEW_HEIGHT = 1080//2
 VIEW_FOV = 90
@@ -135,14 +125,14 @@ class ClientSideBoundingBoxes(object):
 
     @staticmethod
     def get_bounding_boxes(world, camera, actor_type=carla.CityObjectLabel.Vehicles, max_dist=50,
-                           n_samples_per_axis=10, safety_margin=0.8, max_cast_dist=2.0):
+                           n_samples_per_axis=10, safety_margin=0.8, max_cast_dist=2.0, display=None):
         """
         Creates 3D bounding boxes based on carla actor_type and camera.
         """
 
         level_objects = world.get_environment_objects(object_type=actor_type)
         bounding_boxes = [bbox for bbox in [ClientSideBoundingBoxes.get_bounding_box(world, level_object, camera, actor_type, max_dist, 
-                                                                                     n_samples_per_axis, safety_margin, max_cast_dist) 
+                                                                                     n_samples_per_axis, safety_margin, max_cast_dist, display) 
                                                                                     for level_object in level_objects]
                                                                                     if len(bbox)]
         # filter out objects that are behind the camera
@@ -152,7 +142,7 @@ class ClientSideBoundingBoxes(object):
 
     @staticmethod
     def get_bounding_box(world, level_object, camera, actor_type, max_dist, 
-                         n_samples_per_axis, safety_margin, max_cast_dist):
+                         n_samples_per_axis, safety_margin, max_cast_dist, display=None):
         """
         Returns 3D bounding box for a level_object based on camera view.
         """
@@ -164,22 +154,35 @@ class ClientSideBoundingBoxes(object):
 
         dist = camera_loc.distance(level_object_loc)
         if dist <= max_dist: # avoid processing everything in the level
-            sampled_bbox_values = level_object_loc_xyz + (np.random.rand(n_samples_per_axis,3)*2-1)*level_object_ext_xyz*safety_margin
+            # print(f"{level_object.name} is at {dist}")
+            sampled_bbox_values = level_object_loc_xyz + (np.random.rand(n_samples_per_axis,3)*2-1)*level_object_ext_xyz*safety_margin#*np.array([0,0,0])
+                                                                                                                                      #This keeps only the center...
             sampled_locations = [carla.Location(*sample_i) for sample_i in sampled_bbox_values]
             
             ray_cast = []
             for location_i in sampled_locations:
-                # for labelled_pnt in world.cast_ray(camera_loc, location_i):
-                #     if labelled_pnt.label == actor_type:
-                #         dist_cast = labelled_pnt.location.distance(location_i)
-                #         if dist_cast < max_cast_dist:
-                #             ray_cast.append(True)
+                
+                # Ray casting using cast_ray
+                labelled_pnt = (world.cast_ray(camera_loc, location_i) or [None])[0] # it will return an ordered list, but we want the first
 
-                labelled_pnt = world.project_point(camera_loc, 
-                                                   carla.Vector3D(location_i.x-camera_loc.x, 
-                                                                  location_i.y-camera_loc.y, 
-                                                                  location_i.z-camera_loc.z), 
-                                                   dist)
+                # Ray casting using project_point
+                # direction = carla.Vector3D(location_i.x-camera_loc.x, location_i.y-camera_loc.y, location_i.z-camera_loc.z)
+                # labelled_pnt = world.project_point(camera_loc, 
+                #                                    direction, 
+                #                                    dist*1.2) # it will return only the first surface
+
+
+                world_coords = np.array([[location_i.x], [location_i.y], [location_i.z], [1]])
+
+                cam_coords_x_y_z = ClientSideBoundingBoxes._world_to_sensor(world_coords, camera)
+                cam_coords_y_minus_z_x = np.concatenate([cam_coords_x_y_z[1, :], -cam_coords_x_y_z[2, :], cam_coords_x_y_z[0, :]])
+                display_coords = np.transpose(np.dot(camera.calibration, cam_coords_y_minus_z_x))
+                display_coords = np.concatenate([display_coords[:, 0] / display_coords[:, 2], display_coords[:, 1] / display_coords[:, 2], display_coords[:, 2]], axis=1)
+                
+                # Debugging...
+                # print(f"{level_object.name} display coords: {display_coords}")
+                pygame.draw.circle(display, (255,0,0), (display_coords[0,0], display_coords[0,1]), 2.5)
+
                 if labelled_pnt:
                     if labelled_pnt.label == actor_type:
                         dist_cast = labelled_pnt.location.distance(location_i)
@@ -187,10 +190,10 @@ class ClientSideBoundingBoxes(object):
                             ray_cast.append(True)
 
             if any(ray_cast):
-                bb_cords = ClientSideBoundingBoxes._create_bb_points(level_object.bounding_box)
-                cords_x_y_z = ClientSideBoundingBoxes._level_object_to_sensor(bb_cords, level_object, camera)[:3, :]
-                cords_y_minus_z_x = np.concatenate([cords_x_y_z[1, :], -cords_x_y_z[2, :], cords_x_y_z[0, :]])
-                bbox = np.transpose(np.dot(camera.calibration, cords_y_minus_z_x))
+                bb_coords = ClientSideBoundingBoxes._create_bb_points(level_object.bounding_box)
+                coords_x_y_z = ClientSideBoundingBoxes._level_object_to_sensor(bb_coords, level_object, camera)[:3, :]
+                coords_y_minus_z_x = np.concatenate([coords_x_y_z[1, :], -coords_x_y_z[2, :], coords_x_y_z[0, :]])
+                bbox = np.transpose(np.dot(camera.calibration, coords_y_minus_z_x))
                 camera_bbox = np.concatenate([bbox[:, 0] / bbox[:, 2], bbox[:, 1] / bbox[:, 2], bbox[:, 2]], axis=1)
                 return camera_bbox
         
@@ -202,49 +205,49 @@ class ClientSideBoundingBoxes(object):
         Returns 3D bounding box for a level_object.
         """
 
-        cords = np.zeros((8, 4))
+        coords = np.zeros((8, 4))
         extent = bounding_box.extent
-        cords[0, :] = np.array([extent.x, extent.y, -extent.z, 1])
-        cords[1, :] = np.array([-extent.x, extent.y, -extent.z, 1])
-        cords[2, :] = np.array([-extent.x, -extent.y, -extent.z, 1])
-        cords[3, :] = np.array([extent.x, -extent.y, -extent.z, 1])
-        cords[4, :] = np.array([extent.x, extent.y, extent.z, 1])
-        cords[5, :] = np.array([-extent.x, extent.y, extent.z, 1])
-        cords[6, :] = np.array([-extent.x, -extent.y, extent.z, 1])
-        cords[7, :] = np.array([extent.x, -extent.y, extent.z, 1])
-        return cords
+        coords[0, :] = np.array([extent.x, extent.y, -extent.z, 1])
+        coords[1, :] = np.array([-extent.x, extent.y, -extent.z, 1])
+        coords[2, :] = np.array([-extent.x, -extent.y, -extent.z, 1])
+        coords[3, :] = np.array([extent.x, -extent.y, -extent.z, 1])
+        coords[4, :] = np.array([extent.x, extent.y, extent.z, 1])
+        coords[5, :] = np.array([-extent.x, extent.y, extent.z, 1])
+        coords[6, :] = np.array([-extent.x, -extent.y, extent.z, 1])
+        coords[7, :] = np.array([extent.x, -extent.y, extent.z, 1])
+        return coords
 
     @staticmethod
-    def _level_object_to_sensor(cords, level_object, sensor):
+    def _level_object_to_sensor(coords, level_object, sensor):
         """
         Transforms coordinates of a level_object bounding box to sensor.
         """
 
-        world_cord = ClientSideBoundingBoxes._level_object_to_world(cords, level_object)
-        sensor_cord = ClientSideBoundingBoxes._world_to_sensor(world_cord, sensor)
-        return sensor_cord
+        world_coords = ClientSideBoundingBoxes._level_object_to_world(coords, level_object)
+        sensor_coords = ClientSideBoundingBoxes._world_to_sensor(world_coords, sensor)
+        return sensor_coords
 
     @staticmethod
-    def _level_object_to_world(cords, level_object):
+    def _level_object_to_world(coords, level_object):
         """
         Transforms coordinates of a level_object bounding box to world.
         """
 
         bb_transform = carla.Transform(level_object.bounding_box.location, level_object.bounding_box.rotation)
         bb_world_matrix = ClientSideBoundingBoxes.get_matrix(bb_transform.location,bb_transform.rotation)
-        world_cords = np.dot(bb_world_matrix, np.transpose(cords))
-        return world_cords
+        world_coords = np.dot(bb_world_matrix, np.transpose(coords))
+        return world_coords
 
     @staticmethod
-    def _world_to_sensor(cords, sensor):
+    def _world_to_sensor(coords, sensor):
         """
         Transforms world coordinates to sensor.
         """
         
         sensor_world_matrix = ClientSideBoundingBoxes.get_matrix(sensor.get_transform().location,sensor.get_transform().rotation)
         world_sensor_matrix = np.linalg.inv(sensor_world_matrix)
-        sensor_cords = np.dot(world_sensor_matrix, cords)
-        return sensor_cords
+        sensor_coords = np.dot(world_sensor_matrix, coords)
+        return sensor_coords
 
     @staticmethod
     def get_matrix(location, rotation):
@@ -311,9 +314,6 @@ class BasicSynchronousClient(object):
         """
         Sets synchronous mode.
         """
-        while not self.world:
-            print("Where is the carla server?!?!?")
-            sleep(.1) # wait for the simulator
 
         settings = self.world.get_settings()
         settings.synchronous_mode = synchronous_mode
@@ -414,6 +414,10 @@ class BasicSynchronousClient(object):
             self.client.set_timeout(2.0)
             self.world = self.client.get_world()
 
+            print(f"CARLA Client Version: {self.client.get_client_version()}")
+            print(f"CARLA Server Version: {self.client.get_server_version()}")
+            sleep(2)
+
             self.setup_car()
             self.setup_camera()
 
@@ -432,7 +436,8 @@ class BasicSynchronousClient(object):
                 self.render(self.display)
                 bounding_boxes = ClientSideBoundingBoxes.get_bounding_boxes(self.world, 
                                                                             self.camera,
-                                                                            actor_type=carla.CityObjectLabel.Vehicles)
+                                                                            actor_type=carla.CityObjectLabel.Vehicles,
+                                                                            display = self.display)
                 
                 print(f"Bounding boxes found: {len(bounding_boxes)}")
 
