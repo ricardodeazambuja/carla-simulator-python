@@ -12,19 +12,6 @@
 
 TOWN_NAME = 'Town10HD_Opt'
 
-import glob
-import os
-import sys
-
-import random
-import math
-import queue
-
-import numpy as np
-
-import pygame
-
-
 import carla
 
 from carlasyncmode import CarlaSyncMode
