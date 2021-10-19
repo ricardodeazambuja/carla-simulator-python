@@ -37,7 +37,8 @@ def main():
 
         spec_ctrl.spectator.set_transform(carla.Transform(carla.Location(z=50), carla.Rotation()))
 
-        with CarlaSyncMode(world, spec_ctrl.camera_rgb, fps=20) as sync_mode:
+        sensors_list = actor_list
+        with CarlaSyncMode(world, sensors_list, fps=20) as sync_mode:
             while True:
                 if pgh.should_quit():
                     return

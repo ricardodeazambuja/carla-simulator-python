@@ -22,9 +22,9 @@ class CarlaSyncMode():
 
     """
 
-    def __init__(self, world, *sensors, **kwargs):
+    def __init__(self, world, sensor_list, **kwargs):
         self.world = world
-        self.sensors = sensors
+        self.sensors = sensor_list
         self.frame = None
         self.delta_seconds = 1.0 / kwargs.get('fps', 20)
         self._queues = []
