@@ -125,8 +125,8 @@ class ClientSideBoundingBoxes(object):
         """
 
         bb_cords = ClientSideBoundingBoxes._create_bb_points(vehicle)
-        cords_x_y_z = ClientSideBoundingBoxes._vehicle_to_sensor(bb_cords, vehicle, camera)[:3, :]
-        cords_y_minus_z_x = np.concatenate([cords_x_y_z[1, :], -cords_x_y_z[2, :], cords_x_y_z[0, :]])
+        coords_x_y_z = ClientSideBoundingBoxes._vehicle_to_sensor(bb_cords, vehicle, camera)[:3, :]
+        cords_y_minus_z_x = np.concatenate([coords_x_y_z[1, :], -coords_x_y_z[2, :], coords_x_y_z[0, :]])
         bbox = np.transpose(np.dot(camera.calibration, cords_y_minus_z_x))
         camera_bbox = np.concatenate([bbox[:, 0] / bbox[:, 2], bbox[:, 1] / bbox[:, 2], bbox[:, 2]], axis=1)
         return camera_bbox
@@ -166,31 +166,33 @@ class ClientSideBoundingBoxes(object):
         """
 
         bb_transform = carla.Transform(vehicle.bounding_box.location)
-        bb_vehicle_matrix = ClientSideBoundingBoxes.get_matrix(bb_transform)
-        vehicle_world_matrix = ClientSideBoundingBoxes.get_matrix(vehicle.get_transform())
+        bb_vehicle_matrix = ClientSideBoundingBoxes.get_matrix(bb_transform.location, bb_transform.rotation)
+        vehicle_transform = vehicle.get_transform()
+        vehicle_world_matrix = ClientSideBoundingBoxes.get_matrix(vehicle_transform.location, vehicle_transform.rotation)
         bb_world_matrix = np.dot(vehicle_world_matrix, bb_vehicle_matrix)
         world_cords = np.dot(bb_world_matrix, np.transpose(cords))
         return world_cords
 
     @staticmethod
-    def _world_to_sensor(cords, sensor):
+    def _world_to_sensor(coords, sensor):
         """
         Transforms world coordinates to sensor.
         """
 
-        sensor_world_matrix = ClientSideBoundingBoxes.get_matrix(sensor.get_transform())
+        transform = sensor.get_transform()
+        sensor_world_matrix = ClientSideBoundingBoxes.get_matrix(transform.location, transform.rotation)
         world_sensor_matrix = np.linalg.inv(sensor_world_matrix)
-        sensor_cords = np.dot(world_sensor_matrix, cords)
-        return sensor_cords
+        sensor_coords = np.dot(world_sensor_matrix, coords)
+        return sensor_coords
 
     @staticmethod
-    def get_matrix(transform):
+    def get_matrix(location, rotation):
         """
         Creates matrix from carla transform.
         """
 
-        rotation = transform.rotation
-        location = transform.location
+        # rotation = transform.rotation
+        # location = transform.location
         c_y = np.cos(np.radians(rotation.yaw))
         s_y = np.sin(np.radians(rotation.yaw))
         c_r = np.cos(np.radians(rotation.roll))
@@ -233,6 +235,8 @@ class BasicSynchronousClient(object):
         self.image = None
         self.capture = True
 
+        self.actor_list = []
+
     def camera_blueprint(self):
         """
         Returns camera blueprint.
@@ -261,6 +265,7 @@ class BasicSynchronousClient(object):
         car_bp = self.world.get_blueprint_library().filter('vehicle.*')[0]
         location = random.choice(self.world.get_map().get_spawn_points())
         self.car = self.world.spawn_actor(car_bp, location)
+        # self.car.set_simulate_physics(False)
 
     def setup_camera(self):
         """
@@ -334,6 +339,19 @@ class BasicSynchronousClient(object):
             surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))
             display.blit(surface, (0, 0))
 
+    def spawn_actors(self, spawn_points=None, blueprints=None):
+        available_spawn_points = list(self.world.get_map().get_spawn_points())
+        available_blueprints = list(self.world.get_blueprint_library().filter('vehicle.*'))
+        
+        batch = []
+        for i,(spawn_point,blueprint) in enumerate(zip(spawn_points,blueprints)):
+            try:
+                self.actor_list.append(self.world.spawn_actor(blueprint, spawn_point))
+                # self.actor_list[-1].set_simulate_physics(False)
+            except Exception as err:
+                print(err)
+                print(f"{i+1} - Error spawning {blueprint} {(spawn_point in available_spawn_points)} at {spawn_point} {(blueprint in available_blueprints)}!")
+
     def game_loop(self):
         """
         Main program loop.
@@ -352,8 +370,20 @@ class BasicSynchronousClient(object):
             self.display = pygame.display.set_mode((VIEW_WIDTH, VIEW_HEIGHT), pygame.HWSURFACE | pygame.DOUBLEBUF)
             pygame_clock = pygame.time.Clock()
 
-            self.set_synchronous_mode(True)
+            # Spawn N vehicles, randomly
+            N = 20
+            all_spawn_points = list(self.world.get_map().get_spawn_points())
+            random.shuffle(all_spawn_points)
+            spawn_points = [i for i in all_spawn_points[:N]]
+            all_blueprints = list(self.world.get_blueprint_library().filter('vehicle.*'))
+            blueprints = [random.choice(all_blueprints) for i in range(N)]
+            self.spawn_actors(spawn_points=spawn_points, blueprints=blueprints)
+
             vehicles = self.world.get_actors().filter('vehicle.*')
+            # print(vehicles)
+            # print(self.actor_list)
+
+            self.set_synchronous_mode(True)
 
             while True:
                 self.world.tick()
@@ -372,10 +402,15 @@ class BasicSynchronousClient(object):
                     return
 
         finally:
-            self.set_synchronous_mode(False)
+            for actor in self.actor_list:
+                actor.destroy()
+
             self.camera.destroy()
             self.car.destroy()
+
+            self.set_synchronous_mode(False)
             pygame.quit()
+
 
 
 # ==============================================================================
