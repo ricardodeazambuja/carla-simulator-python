@@ -132,150 +132,60 @@ class ClientSideBoundingBoxes(object):
         display.blit(bb_surface, (0, 0))
 
 
-    # @staticmethod
-    # def _vehicle_to_world(coords, vehicle):
-    #     """
-    #     Transforms coordinates of a vehicle bounding box to world.
-    #     """
-
-    #     bb_vehicle_matrix = ClientSideBoundingBoxes.get_matrix(vehicle.bounding_box.location, vehicle.bounding_box.rotation)
-    #     vehicle_world_matrix = ClientSideBoundingBoxes.get_matrix(vehicle.get_transform().location, vehicle.get_transform().rotation)
-    #     bb_world_matrix = np.dot(vehicle_world_matrix, bb_vehicle_matrix)
-    #     print("Matrix:",bb_world_matrix)
-    #     return np.asarray(bb_world_matrix)[:,:3]
-
-
     @staticmethod
-    def get_bounding_boxes(world, camera, tracking_objects, actor_type=carla.CityObjectLabel.Vehicles, max_dist=50,
-                           n_samples_per_axis=10, safety_margin=0.8, max_cast_dist=3.0, display=None):
+    def get_bounding_boxes(world, camera, tracking_objects, actor_type=carla.CityObjectLabel.Vehicles, max_dist=100):
         """
         Creates 3D bounding boxes based on carla actor_type and camera.
         """
 
-        bounding_boxes = [bbox for bbox in [ClientSideBoundingBoxes.get_bounding_box(world, level_object, camera, actor_type, max_dist, 
-                                                                                     n_samples_per_axis, safety_margin, max_cast_dist, display) 
-                                                                                    for level_object in tracking_objects]
-                                                                                    if len(bbox)]
-        # filter out objects that are behind the camera
-        bounding_boxes = [bb for bb in bounding_boxes if all(bb[:, 2] > 0)]
+        filtered_objects = []
+        for li, level_object in enumerate(tracking_objects):
+            object_type = None
+            if type(level_object) == carla.libcarla.Vehicle:
+                object_type = "actor"
+                level_object_loc = level_object.get_transform().location
+            elif type(level_object) == carla.libcarla.EnvironmentObject:
+                object_type = "environment"
+                level_object_loc = level_object.bounding_box.location
+            else:
+                print(f"Weird object type: {type(level_object)}")
+
+            camera_loc = camera.get_transform().location
+            dist = camera_loc.distance(level_object_loc)
+            if dist < max_dist:
+                filtered_objects.append((dist, li, object_type))
+        
+        bounding_boxes = []
+        if filtered_objects:
+            # Ordered according to the distance (inverse), so the objects that are closer will come last
+            filtered_objects = sorted(filtered_objects, key=lambda filtered_objects: filtered_objects[0], reverse=True)
+
+            bounding_boxes = [bbox for bbox in [ClientSideBoundingBoxes.get_bounding_box(tracking_objects[li], object_type, camera) 
+                                                                                        for _,li,object_type in filtered_objects]
+                                                                                        if len(bbox)]
+            # filter out objects that are behind the camera
+            bounding_boxes = [bb for bb in bounding_boxes if all(bb[:, 2] > 0)]
 
         return bounding_boxes
 
-    @staticmethod
-    def get_bounding_box2(vehicle, camera):
-        """
-        Returns 3D bounding box for a vehicle based on camera view.
-        """
 
-        bb_coords = ClientSideBoundingBoxes._create_bb_points(vehicle.bounding_box)
-        coords_x_y_z = ClientSideBoundingBoxes._vehicle_to_sensor(bb_coords, vehicle, camera)[:3, :]
+    @staticmethod
+    def get_bounding_box(level_object, object_type, camera):
+        """
+        Returns 3D bounding box for a level_object based on camera view.
+        """        
+        bb_coords = ClientSideBoundingBoxes._create_bb_points(level_object.bounding_box)
+        if object_type == "actor":
+            coords_x_y_z = ClientSideBoundingBoxes._vehicle_to_sensor(bb_coords, level_object, camera)[:3, :]
+        elif object_type == "environment":
+            coords_x_y_z = ClientSideBoundingBoxes._level_object_to_sensor(bb_coords, level_object, camera)[:3, :]
+        else:
+            print(f"Weird object type: {type(level_object)}")
+
         coords_y_minus_z_x = np.concatenate([coords_x_y_z[1, :], -coords_x_y_z[2, :], coords_x_y_z[0, :]])
         bbox = np.transpose(np.dot(camera.calibration, coords_y_minus_z_x))
         camera_bbox = np.concatenate([bbox[:, 0] / bbox[:, 2], bbox[:, 1] / bbox[:, 2], bbox[:, 2]], axis=1)
         return camera_bbox
-
-    @staticmethod
-    def get_bounding_box(world, level_object, camera, actor_type, max_dist, 
-                         n_samples_per_axis, safety_margin, max_cast_dist, display=None):
-        """
-        Returns 3D bounding box for a level_object based on camera view.
-        """
-        # if type(level_object) == carla.libcarla.Vehicle:
-        #     level_object_loc = level_object.get_transform().location
-        #     level_object_bbox_loc = level_object.bounding_box.location
-        #     level_object_loc_xyz = np.array([level_object_loc.x, 
-        #                                      level_object_loc.y, 
-        #                                      level_object_loc.z+level_object_bbox_loc.z]).T
-        #     level_object_ext = level_object.bounding_box.extent
-        #     level_object_ext_xyz = np.array([level_object_ext.x, level_object_ext.y, level_object_ext.z]).T
-        # elif type(level_object) == carla.libcarla.EnvironmentObject:
-        #     if level_object.type == actor_type: 
-        #         level_object_loc = level_object.bounding_box.location
-        #         level_object_loc_xyz = np.array([level_object_loc.x, level_object_loc.y, level_object_loc.z]).T
-        #         level_object_ext = level_object.bounding_box.extent
-        #         level_object_ext_xyz = np.array([level_object_ext.x, level_object_ext.y, level_object_ext.z]).T
-        #     else:
-        #         raise TypeError("This is not a CARLA vehicle nor EnvironmentObject?!?")
-        # else:
-        #     raise TypeError("This is not a CARLA vehicle nor EnvironmentObject?!?")
-
-
-        # camera_loc = camera.get_transform().location
-        # dist = camera_loc.distance(level_object_loc)
-        # if dist <= max_dist: # avoid processing everything in the level
-        #     sampled_bbox_values = level_object_loc_xyz + (np.random.rand(n_samples_per_axis,3)*2-1)*level_object_ext_xyz*safety_margin#*np.array([0,0,0])
-        #                                                                                                                               #This keeps only the center...
-        #     sampled_locations = [carla.Location(*sample_i) for sample_i in sampled_bbox_values]
-            
-        #     ray_cast = []
-        #     for location_i in sampled_locations:
-                
-        #         # Ray casting using cast_ray
-        #         labelled_pnt = (world.cast_ray(camera_loc, location_i) or [None])[0] # it will return an ordered list, but we want the first
-
-        #         # Ray casting using project_point
-        #         # direction = carla.Vector3D(location_i.x-camera_loc.x, location_i.y-camera_loc.y, location_i.z-camera_loc.z)
-        #         # labelled_pnt = world.project_point(camera_loc, 
-        #         #                                    direction, 
-        #         #                                    dist+max_cast_dist) # it will return only the first surface
-
-
-        #         world_coords = np.array([[location_i.x], [location_i.y], [location_i.z], [1]])
-
-        #         cam_coords_x_y_z = ClientSideBoundingBoxes._world_to_sensor(world_coords, camera)
-        #         if cam_coords_x_y_z[2] > 0: # ignores anything behind the camera
-        #             cam_coords_y_minus_z_x = np.concatenate([cam_coords_x_y_z[1, :], -cam_coords_x_y_z[2, :], cam_coords_x_y_z[0, :]])
-        #             display_coords = np.transpose(np.dot(camera.calibration, cam_coords_y_minus_z_x))
-        #             display_coords = np.concatenate([display_coords[:, 0] / display_coords[:, 2], display_coords[:, 1] / display_coords[:, 2], display_coords[:, 2]], axis=1)
-                    
-
-        #             # print(f"{level_object.name} display coords: {display_coords}")
-        #             pygame.draw.circle(display, (255,0,0), (display_coords[0,0], display_coords[0,1]), 2.5) # red => sampled point
-
-        #             if labelled_pnt:
-        #                 pygame.draw.circle(display, (255,165,0), (display_coords[0,0], display_coords[0,1]), 2.5) # orange => point hit something
-        #                 if "Vehicle" in str(labelled_pnt.label):
-        #                     dist_cast = labelled_pnt.location.distance(location_i)
-        #                     print(dist_cast)
-        #                     if dist_cast < max_cast_dist:
-        #                         pygame.draw.circle(display, (0,255,0), (display_coords[0,0], display_coords[0,1]), 2.5) # green => point hit a label==actor_type
-        #                         ray_cast.append(True)
-
-        #     if any(ray_cast):
-        #         bb_coords = ClientSideBoundingBoxes._create_bb_points(level_object.bounding_box)
-        #         coords_x_y_z = ClientSideBoundingBoxes._level_object_to_sensor(bb_coords, level_object, camera)[:3, :]
-        #         coords_y_minus_z_x = np.concatenate([coords_x_y_z[1, :], -coords_x_y_z[2, :], coords_x_y_z[0, :]])
-        #         bbox = np.transpose(np.dot(camera.calibration, coords_y_minus_z_x))
-        #         camera_bbox = np.concatenate([bbox[:, 0] / bbox[:, 2], bbox[:, 1] / bbox[:, 2], bbox[:, 2]], axis=1)
-        #         return camera_bbox
-        
-        object_type = None
-        if type(level_object) == carla.libcarla.Vehicle:
-            object_type = "actor"
-            level_object_loc = level_object.get_transform().location
-        elif type(level_object) == carla.libcarla.EnvironmentObject:
-            object_type = "environment"
-            level_object_loc = level_object.bounding_box.location
-        else:
-            print(f"Weird object type: {type(level_object)}")
-
-        camera_loc = camera.get_transform().location
-        dist = camera_loc.distance(level_object_loc)
-        if dist <= max_dist: # avoid processing everything in the level
-            bb_coords = ClientSideBoundingBoxes._create_bb_points(level_object.bounding_box)
-            if object_type == "actor":
-                coords_x_y_z = ClientSideBoundingBoxes._vehicle_to_sensor(bb_coords, level_object, camera)[:3, :]
-            elif object_type == "environment":
-                coords_x_y_z = ClientSideBoundingBoxes._level_object_to_sensor(bb_coords, level_object, camera)[:3, :]
-            else:
-                print(f"Weird object type: {type(level_object)}")
-
-            coords_y_minus_z_x = np.concatenate([coords_x_y_z[1, :], -coords_x_y_z[2, :], coords_x_y_z[0, :]])
-            bbox = np.transpose(np.dot(camera.calibration, coords_y_minus_z_x))
-            camera_bbox = np.concatenate([bbox[:, 0] / bbox[:, 2], bbox[:, 1] / bbox[:, 2], bbox[:, 2]], axis=1)
-            return camera_bbox
-        else:
-            return []
 
     @staticmethod
     def _create_bb_points(bounding_box):
@@ -605,7 +515,7 @@ class BasicSynchronousClient(object):
                 bounding_boxes = ClientSideBoundingBoxes.get_bounding_boxes(self.world, 
                                                                             self.camera,
                                                                             track_objects,
-                                                                            display = self.display)
+                                                                            max_dist=100)
 
                 bboxes2D = []
                 for bbox in bounding_boxes:
@@ -618,12 +528,19 @@ class BasicSynchronousClient(object):
                                      (xmin, ymin)])
 
                 # Filter bboxes that match the mask                
-                MIN_PIXELS_MASK = 200
+                MIN_PIXELS_MASK = 100
                 bboxes2D_filtered = []
                 bboxes_filtered = []
                 for bi, bbox in enumerate(bboxes2D):
                     if len(self.masked) and (bbox[1][0] != bbox[0][0]) and (bbox[1][1] != bbox[0][1]):
-                        if (self.masked[bbox[1][0]:bbox[0][0], bbox[1][1]:bbox[0][1]]).sum() > MIN_PIXELS_MASK:
+                        if self.masked[bbox[1][0]:bbox[0][0], bbox[1][1]:bbox[0][1]].sum() > MIN_PIXELS_MASK:
+                            self.masked[bbox[1][0]:bbox[0][0], bbox[1][1]:bbox[0][1]] = bi+1 # mark where the bbox is
+                                                                                             # The "+1" is because 0 is the default value
+                            # The list was ordered to put the objects that are closer, last.
+
+                for bi, bbox in enumerate(bboxes2D):
+                    if len(self.masked) and (bbox[1][0] != bbox[0][0]) and (bbox[1][1] != bbox[0][1]):
+                        if (self.masked[bbox[1][0]:bbox[0][0], bbox[1][1]:bbox[0][1]] == bi+1).sum() > MIN_PIXELS_MASK: # The "+1" is because 0 is the default value
                             bboxes2D_filtered.append(bbox)
                             bboxes_filtered.append(bounding_boxes[bi])
 
