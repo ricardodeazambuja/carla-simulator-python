@@ -8,7 +8,8 @@ FROM carlasim/carla:${CARLA_VERSION} as base
 # Just to get rid of the annoying error message...
 # See https://answers.unrealengine.com/questions/1039260/suppress-or-fix-xdg-user-dir-not-found.html
 USER root
-RUN apt-get install --no-install-recommends xdg-user-dirs
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends xdg-user-dirs vim sudo
 RUN rm -rf /var/lib/apt/lists/*
 USER carla
 # Done!
