@@ -32,8 +32,16 @@ def main():
         world = client.load_world('Town10HD_Opt') #it takes a while to load, so the client timeout needs to afford that.
     
     try:
-        spec_ctrl = SpectatorController(world)
-        actor_list.append(spec_ctrl.camera_rgb) # so it will be destroyed at the end
+        sensors = []
+        camera_rgb_bp = world.get_blueprint_library().find('sensor.camera.rgb')
+        sensors.append({'name':'camera_rgb','blueprint':camera_rgb_bp})
+
+        camera_semantic_bp = world.get_blueprint_library().find('sensor.camera.semantic_segmentation')
+        sensors.append({'name':'camera_semantic','blueprint':camera_semantic_bp})
+
+        spec_ctrl = SpectatorController(world, sensors)
+        actor_list.append(spec_ctrl.sensors['camera_rgb']) # so it will be destroyed at the end
+        actor_list.append(spec_ctrl.sensors['camera_semantic']) # so it will be destroyed at the end
 
         spec_ctrl.spectator.set_transform(carla.Transform(carla.Location(z=50), carla.Rotation()))
 
@@ -47,7 +55,7 @@ def main():
                 spec_ctrl.parse_keys(pgh.clock.get_time())
 
                 # Advance the simulation and wait for the data.
-                snapshot, image_rgb = sync_mode.tick(timeout=2.0)
+                snapshot, image_rgb, image_semantic = sync_mode.tick(timeout=2.0)
 
 
                 # image_semseg.convert(carla.ColorConverter.CityScapesPalette)
@@ -55,6 +63,11 @@ def main():
 
                 # Draw the display.
                 pgh.draw_image(image_rgb)
+                
+                # Overlay the semantic segmentation
+                image_semantic.convert(carla.ColorConverter.CityScapesPalette)
+                pgh.draw_image(image_semantic, blend=True)
+
                 msg = 'UpKey:Forward, DownKey:Backward, LeftKey:+Yaw, RightKey:-Yaw, W:+Pitch, S:-Pitch, SPACE: Stop, ESC: Exit'
                 pgh.blit(pgh.font.render(msg, True, (255, 255, 255)), (8, 10))
                 pgh.blit(pgh.font.render(f'{pgh.clock.get_fps()} FPS (real)', True, (255, 255, 255)), (8, 30))
