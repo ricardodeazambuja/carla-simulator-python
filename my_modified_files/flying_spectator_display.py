@@ -21,7 +21,7 @@ from carlapygamehelper import CarlaPygameHelper
 def main():
     actor_list = []
 
-    pgh = CarlaPygameHelper(height=800, width=600)
+    pgh = CarlaPygameHelper(height=600, width=800)
 
     # Connect to the CARLA server
     client = carla.Client('localhost', 2000)
