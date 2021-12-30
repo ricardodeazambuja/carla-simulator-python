@@ -17,12 +17,21 @@ import carla
 
 
 class SpectatorController():
-    def __init__(self, world):
+    def __init__(self, world, camera_transform=None, blueprint=None):
         self.spectator = world.get_spectator()
-        self.camera_rgb = world.spawn_actor(
-            world.get_blueprint_library().find('sensor.camera.rgb'),
-            carla.Transform(carla.Location(), carla.Rotation()),
-            attach_to=self.spectator)
+        if not blueprint:
+            blueprint = world.get_blueprint_library().find('sensor.camera.rgb')
+
+        if camera_transform:
+            self.camera_rgb = world.spawn_actor(
+                blueprint,
+                camera_transform,
+                attach_to=self.spectator)
+        else:
+            self.camera_rgb = world.spawn_actor(
+                blueprint,
+                carla.Transform(carla.Location(), carla.Rotation()),
+                attach_to=self.spectator)
 
         self.transform = {'loc':[0,0,0],'rot':[0,0,0]}
 
