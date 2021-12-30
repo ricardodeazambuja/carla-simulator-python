@@ -5,9 +5,9 @@ import pygame
 
 class CarlaPygameHelper():
 
-    def __init__(self, height=800, width=600, default_font='ubuntumono'):
+    def __init__(self, width=800, height=600, default_font='ubuntumono'):
         pygame.init()
-        self.display = pygame.display.set_mode((height, width), 
+        self.display = pygame.display.set_mode((width,height), 
                                                pygame.HWSURFACE | pygame.DOUBLEBUF) # https://stackoverflow.com/a/29135900/7658422
         self.font = self.get_font(default_font)
         self.clock = pygame.time.Clock()
