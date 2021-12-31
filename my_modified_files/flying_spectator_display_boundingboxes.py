@@ -116,6 +116,8 @@ def main():
                 array = array[:, :, ::-1]
                 array = array.swapaxes(0, 1)
                 masked = np.zeros(array.shape[:2], dtype=np.uint8)
+                
+                # Vehicles (10)
                 mask = array[..., 0] == 10 # https://carla.readthedocs.io/en/0.9.12/ref_sensors/#semantic-segmentation-camera
                 masked[mask] = 1
 
