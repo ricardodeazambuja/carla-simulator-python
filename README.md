@@ -11,7 +11,7 @@ docker run --rm -it --name carla-container -u carla -p 2000-2002:2000-2002 --gpu
 Press ENTER to kill the simulator (it takes some seconds until it dies...).
 
 
-## Using the [PythonAPI](https://carla.readthedocs.io/en/0.9.12/python_api/)
+## Using the [PythonAPI](https://carla.readthedocs.io/en/0.9.13/python_api/)
 ```
 docker cp carla-container:/home/carla/PythonAPI .
 ```
@@ -43,7 +43,7 @@ cd ../carla/dist/  #it's inside PythonAPI/carla/dist
 ```
 
 ```
-pip install carla-0.9.12-cp37-cp37m-manylinux_2_27_x86_64.whl
+pip install carla-0.9.13-cp37-cp37m-manylinux_2_27_x86_64.whl
 ```
 *If pip complains and you are sure the Python version is correct, one possible cause is that you forgot to upgrade pip*
 
