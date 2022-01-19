@@ -10,7 +10,12 @@ FROM carlasim/carla@sha256:2c1a59808792b99233c92dcdab6afb575357b863a00f7ff44b3ae
 USER root
 
 RUN apt-get update
-RUN apt-get install -y --no-install-recommends xdg-user-dirs vim sudo avahi-daemon \
+RUN apt-get install -y --no-install-recommends \
+  xdg-user-dirs \
+  vim \
+  sudo \
+  avahi-daemon \
+  libnss-mdns \
   && apt-get -qq -y autoclean \
   && apt-get -qq -y autoremove \
   && apt-get -qq -y clean \
