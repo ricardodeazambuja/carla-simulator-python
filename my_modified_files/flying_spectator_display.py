@@ -75,10 +75,11 @@ def main():
                 keys = spec_ctrl.pygame.key.get_pressed()
                 key_press = any(keys)
                 
-                tmilliseconds = pgh.clock.get_time()
+                ts = pgh.clock.get_time()/1000 # in seconds
                 if key_press:
-                    delta = 5e-4 * tmilliseconds
-                    if keys[spec_ctrl.K_SPACE]:
+                    # changes the position and angles by this delta
+                    delta = 0.5*ts
+                    if keys[spec_ctrl.K_SPACE]: # stops it from moving
                         spec_ctrl.transform['loc'] = [0,0,0]
                         spec_ctrl.transform['rot'] = [0,0,0]
                     elif keys[spec_ctrl.K_UP]:
@@ -94,28 +95,38 @@ def main():
                     elif keys[spec_ctrl.K_d] or keys[spec_ctrl.K_RIGHT]:
                                 spec_ctrl.transform['rot'][2] += delta
 
+                # # 2) move programmatically (replacing any values set above)
+                # spec_ctrl.transform['loc'] = [x, y, z]
+                # spec_ctrl.transform['rot'] = [roll, pitch, yaw]
+
+                
                 curr_loc = spec_ctrl.spectator.get_transform().location
                 curr_rot = spec_ctrl.spectator.get_transform().rotation
 
+                # If we want it to move continously, kind of FPV style, 
+                # where x (spec_ctrl.transform['loc'][0]) moves forward or backward
                 yaw_rad = math.radians(curr_rot.yaw) # math should be faster than numpy for only one value
                 pitch_rad = math.radians(curr_rot.pitch)
-
                 next_loc = curr_loc + carla.Location(x=spec_ctrl.transform['loc'][0]*math.cos(yaw_rad), 
                                                      y=spec_ctrl.transform['loc'][0]*math.sin(yaw_rad), 
                                                      z=spec_ctrl.transform['loc'][0]*math.sin(pitch_rad))
-                
+
                 next_rot = carla.Rotation(roll=spec_ctrl.transform['rot'][0]+curr_rot.roll,
                                           pitch=max(-89.9, min(89.9, spec_ctrl.transform['rot'][1]+curr_rot.pitch)),
                                           yaw=spec_ctrl.transform['rot'][2]+curr_rot.yaw)
 
-                # 2) move programmatically
-                add_x = add_y = add_z = 0
-                add_roll = add_pitch = add_yaw = 0
-                next_loc = next_loc + carla.Location(x=add_x,y=add_y, z=add_z)
-                next_rot = carla.Rotation(roll=add_roll+next_rot.roll,
-                                          pitch=add_pitch+next_rot.pitch,
-                                          yaw=add_yaw+next_rot.yaw)
+                # # Otherwise, just set the global position and the attitude
+                # next_loc = carla.Location(x=spec_ctrl.transform['loc'][0], 
+                #                           y=spec_ctrl.transform['loc'][1], 
+                #                           z=spec_ctrl.transform['loc'][2])
+                # next_rot = carla.Rotation(roll=spec_ctrl.transform['rot'][0],
+                #                           pitch=spec_ctrl.transform['rot'][1]),
+                #                           yaw=spec_ctrl.transform['rot'][2])
 
+                
+                next_rot = carla.Rotation(roll=spec_ctrl.transform['rot'][0]+curr_rot.roll,
+                                          pitch=max(-89.9, min(89.9, spec_ctrl.transform['rot'][1]+curr_rot.pitch)),
+                                          yaw=spec_ctrl.transform['rot'][2]+curr_rot.yaw)
 
                 spec_ctrl.spectator.set_transform(carla.Transform(next_loc, next_rot)) # it will continuously apply the transformation
 
