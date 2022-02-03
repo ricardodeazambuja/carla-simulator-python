@@ -12,6 +12,8 @@
 
 TOWN_NAME = 'Town10HD_Opt'
 
+import math
+
 import numpy as np
 
 import carla
@@ -69,7 +71,53 @@ def main():
                     return
                 pgh.clock.tick(SIM_FPS)
 
-                spec_ctrl.parse_keys(pgh.clock.get_time())
+                # move using key presses
+                keys = spec_ctrl.pygame.key.get_pressed()
+                key_press = any(keys)
+                
+                tmilliseconds = pgh.clock.get_time()
+                if key_press:
+                    delta = 5e-4 * tmilliseconds
+                    if keys[spec_ctrl.K_SPACE]:
+                        spec_ctrl.transform['loc'] = [0,0,0]
+                        spec_ctrl.transform['rot'] = [0,0,0]
+                    elif keys[spec_ctrl.K_UP]:
+                        spec_ctrl.transform['loc'][0] += delta
+                    elif keys[spec_ctrl.K_DOWN]:
+                        spec_ctrl.transform['loc'][0] -= delta
+                    elif keys[spec_ctrl.K_w]:
+                                spec_ctrl.transform['rot'][1] -= delta
+                    elif keys[spec_ctrl.K_s]:
+                                spec_ctrl.transform['rot'][1] += delta
+                    elif keys[spec_ctrl.K_a] or keys[spec_ctrl.K_LEFT]:
+                                spec_ctrl.transform['rot'][2] -= delta
+                    elif keys[spec_ctrl.K_d] or keys[spec_ctrl.K_RIGHT]:
+                                spec_ctrl.transform['rot'][2] += delta
+
+                curr_loc = spec_ctrl.spectator.get_transform().location
+                curr_rot = spec_ctrl.spectator.get_transform().rotation
+
+                yaw_rad = math.radians(curr_rot.yaw) # math should be faster than numpy for only one value
+                pitch_rad = math.radians(curr_rot.pitch)
+
+                next_loc = curr_loc + carla.Location(x=spec_ctrl.transform['loc'][0]*math.cos(yaw_rad), 
+                                                     y=spec_ctrl.transform['loc'][0]*math.sin(yaw_rad), 
+                                                     z=spec_ctrl.transform['loc'][0]*math.sin(pitch_rad))
+                
+                next_rot = carla.Rotation(roll=spec_ctrl.transform['rot'][0]+curr_rot.roll,
+                                          pitch=max(-89.9, min(89.9, spec_ctrl.transform['rot'][1]+curr_rot.pitch)),
+                                          yaw=spec_ctrl.transform['rot'][2]+curr_rot.yaw)
+
+                # 2) move programmatically
+                add_x = add_y = add_z = 0
+                add_roll = add_pitch = add_yaw = 0
+                next_loc = next_loc + carla.Location(x=add_x,y=add_y, z=add_z)
+                next_rot = carla.Rotation(roll=add_roll+next_rot.roll,
+                                          pitch=add_pitch+next_rot.pitch,
+                                          yaw=add_yaw+next_rot.yaw)
+
+
+                spec_ctrl.spectator.set_transform(carla.Transform(next_loc, next_rot)) # it will continuously apply the transformation
 
                 # Advance the simulation and wait for the data.
                 # snapshot, image_rgb, image_semantic = sync_mode.tick(timeout=2.0)
