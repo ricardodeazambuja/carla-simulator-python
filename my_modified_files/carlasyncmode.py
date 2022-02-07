@@ -51,7 +51,7 @@ class CarlaSyncMode():
     def tick(self, timeout):
         self.frame = self.world.tick()
         data = [self._retrieve_data(q, timeout) for q in self._queues]
-        assert all(x.frame == self.frame for x in data)
+        # assert all(x.frame == self.frame for x in data) # some sensors may take too long and return None
         return data
 
     def __exit__(self, *args, **kwargs):
@@ -59,6 +59,9 @@ class CarlaSyncMode():
 
     def _retrieve_data(self, sensor_queue, timeout):
         while True:
-            data = sensor_queue.get(timeout=timeout)
+            try:
+                data = sensor_queue.get(timeout=timeout)
+            except queue.Empty:
+                return None # if a sensor takes too long, it will return None
             if data.frame == self.frame:
                 return data
