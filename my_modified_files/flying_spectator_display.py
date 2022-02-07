@@ -54,12 +54,21 @@ def main():
         lidar_raycast_bp.channels = 2
         sensors.append({'name':'lidar_raycast','blueprint':lidar_raycast_bp})
 
+        obstacle_bp = world.get_blueprint_library().find('sensor.other.obstacle')
+        obstacle_bp.distance = 5
+        obstacle_bp.hit_radius = 0.5
+        obstacle_bp.only_dynamics = False
+        obstacle_bp.debug_linetrace = True
+        obstacle_bp.sensor_tick = 0.0
+        sensors.append({'name':'obstacle_detection','blueprint':obstacle_bp})
+
         # camera_semantic_bp = world.get_blueprint_library().find('sensor.camera.semantic_segmentation')
         # sensors.append({'name':'camera_semantic','blueprint':camera_semantic_bp})
 
         spec_ctrl = SpectatorController(world, sensors)
         actor_list.append(spec_ctrl.sensors['camera_rgb']) # so it will be destroyed at the end
         actor_list.append(spec_ctrl.sensors['lidar_raycast']) # so it will be destroyed at the end
+        actor_list.append(spec_ctrl.sensors['obstacle_detection']) # so it will be destroyed at the end
         # actor_list.append(spec_ctrl.sensors['camera_semantic']) # so it will be destroyed at the end
 
         spec_ctrl.spectator.set_transform(carla.Transform(carla.Location(z=50), carla.Rotation()))
@@ -132,38 +141,45 @@ def main():
 
                 # Advance the simulation and wait for the data.
                 # snapshot, image_rgb, image_semantic = sync_mode.tick(timeout=2.0)
-                snapshot, image_rgb, lidar_data = sync_mode.tick(timeout=2.0)
+                snapshot, image_rgb, lidar_data, obstacles_data = sync_mode.tick(timeout=1/SIM_FPS)
+
+                if obstacles_data:
+                    print(f"Distance to obstable: {obstacles_data.distance}")
+                else:
+                    print(f"Distance to obstable: out of reach")
 
 
-                # https://github.com/carla-simulator/carla/blob/master/PythonAPI/examples/lidar_to_camera.py
-                # Get the lidar data and convert it to a numpy array.
-                p_cloud_size = len(lidar_data)
-                p_cloud = np.copy(np.frombuffer(lidar_data.raw_data, dtype=np.dtype('f4')))
-                p_cloud = np.reshape(p_cloud, (p_cloud_size, 4))
+                if lidar_data:
+                    # https://github.com/carla-simulator/carla/blob/master/PythonAPI/examples/lidar_to_camera.py
+                    # Get the lidar data and convert it to a numpy array.
+                    p_cloud_size = len(lidar_data)
+                    p_cloud = np.copy(np.frombuffer(lidar_data.raw_data, dtype=np.dtype('f4')))
+                    p_cloud = np.reshape(p_cloud, (p_cloud_size, 4))
 
-                # Lidar intensity array of shape (p_cloud_size,) but, for now, let's
-                # focus on the 3D points.
-                intensity = np.array(p_cloud[:, 3])
+                    # Lidar intensity array of shape (p_cloud_size,) but, for now, let's
+                    # focus on the 3D points.
+                    intensity = np.array(p_cloud[:, 3])
 
-                # Point cloud in lidar sensor space array of shape (3, p_cloud_size).
-                local_lidar_points = np.array(p_cloud[:, :3]).T
+                    # Point cloud in lidar sensor space array of shape (3, p_cloud_size).
+                    local_lidar_points = np.array(p_cloud[:, :3]).T
 
-                # Add an extra 1.0 at the end of each 3d point so it becomes of
-                # shape (4, p_cloud_size) and it can be multiplied by a (4, 4) matrix.
-                local_lidar_points = np.r_[
-                    local_lidar_points, [np.ones(local_lidar_points.shape[1])]]
+                    # Add an extra 1.0 at the end of each 3d point so it becomes of
+                    # shape (4, p_cloud_size) and it can be multiplied by a (4, 4) matrix.
+                    local_lidar_points = np.r_[
+                        local_lidar_points, [np.ones(local_lidar_points.shape[1])]]
 
-                # This (4, 4) matrix transforms the points from lidar space to world space.
-                lidar_2_world = spec_ctrl.sensors['lidar_raycast'].get_transform().get_matrix()
+                    # This (4, 4) matrix transforms the points from lidar space to world space.
+                    lidar_2_world = spec_ctrl.sensors['lidar_raycast'].get_transform().get_matrix()
 
-                # Transform the points from lidar space to world space.
-                world_points = np.dot(lidar_2_world, local_lidar_points)
+                    # Transform the points from lidar space to world space.
+                    world_points = np.dot(lidar_2_world, local_lidar_points)
 
                 # image_semseg.convert(carla.ColorConverter.CityScapesPalette)
                 fps = round(1.0 / snapshot.timestamp.delta_seconds)
 
                 # Draw the display.
-                pgh.draw_image(image_rgb)
+                if image_rgb:
+                    pgh.draw_image(image_rgb)
                 
                 # Overlay the semantic segmentation
                 # image_semantic.convert(carla.ColorConverter.CityScapesPalette)
