@@ -23,6 +23,7 @@ from spectatorcontroller import SpectatorController
 from carlapygamehelper import CarlaPygameHelper
 
 SIM_FPS = 40
+LIDAR_RANGE = 100
 
 def main():
     actor_list = []
@@ -48,10 +49,17 @@ def main():
 
         # https://carla.readthedocs.io/en/latest/ref_sensors/#lidar-sensor
         lidar_raycast_bp = world.get_blueprint_library().find('sensor.lidar.ray_cast')
-        lidar_raycast_bp.range = 200
+        lidar_raycast_bp.range = LIDAR_RANGE
+        lidar_raycast_bp.upper_fov = 85
+        lidar_raycast_bp.lower_fov = -85
+        lidar_raycast_bp.horizontal_fov = 360
         lidar_raycast_bp.points_per_second = 10000
         lidar_raycast_bp.rotation_frequency = 10
-        lidar_raycast_bp.channels = 2
+        lidar_raycast_bp.channels = 32
+        lidar_raycast_bp.dropoff_general_rate = 0.0
+        lidar_raycast_bp.dropoff_intensity_limit = 0.0
+        lidar_raycast_bp.dropoff_zero_intensity = 0.0
+        lidar_raycast_bp.noise_stddev = 0.0
         sensors.append({'name':'lidar_raycast','blueprint':lidar_raycast_bp})
 
         obstacle_bp = world.get_blueprint_library().find('sensor.other.obstacle')
@@ -66,15 +74,12 @@ def main():
         # sensors.append({'name':'camera_semantic','blueprint':camera_semantic_bp})
 
         spec_ctrl = SpectatorController(world, sensors)
-        actor_list.append(spec_ctrl.sensors['camera_rgb']) # so it will be destroyed at the end
-        actor_list.append(spec_ctrl.sensors['lidar_raycast']) # so it will be destroyed at the end
-        actor_list.append(spec_ctrl.sensors['obstacle_detection']) # so it will be destroyed at the end
-        # actor_list.append(spec_ctrl.sensors['camera_semantic']) # so it will be destroyed at the end
-
+        # Don't forget: actors need to be destroyed at the end ;)
+     
+        # Set initial pose
         spec_ctrl.spectator.set_transform(carla.Transform(carla.Location(z=50), carla.Rotation()))
 
-        sensors_list = actor_list
-        with CarlaSyncMode(world, sensors_list, fps=SIM_FPS) as sync_mode:
+        with CarlaSyncMode(world, spec_ctrl.sensors.values(), fps=SIM_FPS) as sync_mode:
             while True:
                 if pgh.should_quit():
                     return
@@ -141,20 +146,25 @@ def main():
 
                 # Advance the simulation and wait for the data.
                 # snapshot, image_rgb, image_semantic = sync_mode.tick(timeout=2.0)
-                snapshot, image_rgb, lidar_data, obstacles_data = sync_mode.tick(timeout=1/SIM_FPS)
+                received_data = sync_mode.tick(timeout=1/SIM_FPS)
+                snapshot = received_data[0]
+                sim_data = {k:d for k,d in zip(spec_ctrl.sensors.keys(),received_data[1:])}
 
-                if obstacles_data:
-                    print(f"Distance to obstable: {obstacles_data.distance}")
+                if sim_data['obstacle_detection']:
+                    print(f"Distance to obstable [{sim_data['obstacle_detection'].other_actor}] (raycast, ahead): {sim_data['obstacle_detection'].distance}")
                 else:
-                    print(f"Distance to obstable: out of reach")
+                    print(f"Distance to obstable (raycast, ahead): out of reach")
 
 
-                if lidar_data:
+                if sim_data['lidar_raycast']:
                     # https://github.com/carla-simulator/carla/blob/master/PythonAPI/examples/lidar_to_camera.py
                     # Get the lidar data and convert it to a numpy array.
-                    p_cloud_size = len(lidar_data)
-                    p_cloud = np.copy(np.frombuffer(lidar_data.raw_data, dtype=np.dtype('f4')))
+                    p_cloud_size = len(sim_data['lidar_raycast'])
+                    p_cloud = np.copy(np.frombuffer(sim_data['lidar_raycast'].raw_data, dtype=np.dtype('f4')))
                     p_cloud = np.reshape(p_cloud, (p_cloud_size, 4))
+
+                    distance_from_lidar = np.sqrt(np.power(p_cloud[:, :3],2).sum(axis=1))
+                    print(f"Distance to obstables (from Lidar {sim_data['lidar_raycast'].horizontal_angle}): {distance_from_lidar.min()}")
 
                     # Lidar intensity array of shape (p_cloud_size,) but, for now, let's
                     # focus on the 3D points.
@@ -173,13 +183,15 @@ def main():
 
                     # Transform the points from lidar space to world space.
                     world_points = np.dot(lidar_2_world, local_lidar_points)
+                else:
+                    print(f"Distance to obstables (from Lidar): out of reach")
 
                 # image_semseg.convert(carla.ColorConverter.CityScapesPalette)
                 fps = round(1.0 / snapshot.timestamp.delta_seconds)
 
                 # Draw the display.
-                if image_rgb:
-                    pgh.draw_image(image_rgb)
+                if sim_data['camera_rgb']:
+                    pgh.draw_image(sim_data['camera_rgb'])
                 
                 # Overlay the semantic segmentation
                 # image_semantic.convert(carla.ColorConverter.CityScapesPalette)
@@ -196,7 +208,7 @@ def main():
     finally:
 
         print('destroying actors.')
-        for actor in actor_list:
+        for actor in spec_ctrl.sensors.values():
             actor.destroy()
 
         pgh.quit()
