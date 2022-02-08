@@ -40,6 +40,7 @@ def main():
     
     
     # # Example of texture randomization
+    # # (here they use images instead = https://github.com/carla-simulator/carla/blob/master/PythonAPI/util/apply_texture.py)
     # RADIUS2RANDTEXTURE = 200 # since we start at x,y,z = 0,0,0, this will randomize only things this close
     # all_objects = world.get_names_of_all_objects() # texture only works with these objects
     # # https://carla.readthedocs.io/en/0.9.13/python_api/#carla.CityObjectLabel
