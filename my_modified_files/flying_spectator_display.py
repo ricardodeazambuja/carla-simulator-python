@@ -13,6 +13,7 @@
 TOWN_NAME = 'Town10HD_Opt'
 
 import math
+import random
 
 import numpy as np
 
@@ -35,58 +36,87 @@ def main():
     client.set_timeout(10.0)
     world = client.get_world()
 
+    print(f"Available maps: \n{client.get_available_maps()}")
+
+    # Useful for randomization as well
+    map_layer_names = [
+                        carla.MapLayer.NONE,
+                        carla.MapLayer.Buildings,
+                        carla.MapLayer.Decals,
+                        carla.MapLayer.Foliage,
+                        carla.MapLayer.Ground,
+                        carla.MapLayer.ParkedVehicles,
+                        carla.MapLayer.Particles,
+                        carla.MapLayer.Props,
+                        carla.MapLayer.StreetLights,
+                        carla.MapLayer.Walls,
+                        carla.MapLayer.All
+                        ]
+    # world.unload_map_layer(carla.MapLayer.Buildings)
+    # world.load_map_layer(carla.MapLayer.Buildings)
+
     if world.get_map().name.split('/')[-1] != 'Town10HD_Opt':
         world = client.load_world('Town10HD_Opt') #it takes a while to load, so the client timeout needs to afford that.
-    
-    
-    # # Example of texture randomization
-    # # (here they use images instead = https://github.com/carla-simulator/carla/blob/master/PythonAPI/util/apply_texture.py)
-    # RADIUS2RANDTEXTURE = 200 # since we start at x,y,z = 0,0,0, this will randomize only things this close
-    # all_objects = world.get_names_of_all_objects() # texture only works with these objects
-    # # https://carla.readthedocs.io/en/0.9.13/python_api/#carla.CityObjectLabel
-    # level_objects = world.get_environment_objects(object_type=carla.CityObjectLabel.Buildings)
-    # names = set()
-    # for o in level_objects:
-    #     loc = o.transform.location
-    #     radius = (loc.x**2+loc.y**2+loc.z**2)**(1/2)
-    #     if radius < RADIUS2RANDTEXTURE:
-    #         for name in all_objects:
-    #             if name in o.name:
-    #                 names.add(name)
-    #                 break
 
-    # print("Randomizing textures...")
-    # for name in names:
-    #     # Modify its texture 
-    #     tex_height = 40
-    #     tex_width = 20
-    #     texture = carla.TextureColor(tex_width,tex_height)
-    #     for x in range(0,tex_width):
-    #         for y in range(0,tex_height):
-    #             color = (np.random.rand(4)*255).astype(int)
-    #             r = int(color[0])
-    #             g = int(color[1])
-    #             b = int(color[2])
-    #             a = int(color[3])
-    #             texture.set(x, tex_height - y - 1, carla.Color(r,g,b,a))
+
+    RADIUS_SELECTION= 100 # since we start at x,y,z = 0,0,0, this will select only things this close
+    all_objects = world.get_names_of_all_objects() # texture only works with these objects
+    # https://carla.readthedocs.io/en/0.9.13/python_api/#carla.CityObjectLabel
+    level_objects = world.get_environment_objects(object_type=carla.CityObjectLabel.Buildings)
+    names = set()
+    for o in level_objects:
+        loc = o.transform.location
+        radius = (loc.x**2+loc.y**2+loc.z**2)**(1/2)
+        if radius < RADIUS_SELECTION:
+            for name in all_objects:
+                if name in o.name:
+                    names.add(name)
+                    break
+
+    # # Randomly disable objects
+    # target_ids = []
+    # target_names = set(random.sample(names, int(len(names)*0.5)))
+    # for n in target_names:
+    #     for l in level_objects:
+    #         if n in l.name:
+    #             target_ids.append(l.id)
+    # world.enable_environment_objects(target_ids, False)
+    # names = names - target_names # selects the objects that were left enabled
+    
+    # Example of texture randomization
+    # (here they use images instead = https://github.com/carla-simulator/carla/blob/master/PythonAPI/util/apply_texture.py)
+    print("Randomizing textures...")
+    for name in names:
+        # Modify its texture 
+        tex_height = 40
+        tex_width = 20
+        texture = carla.TextureColor(tex_width,tex_height)
+        for x in range(0,tex_width):
+            for y in range(0,tex_height):
+                color = (np.random.rand(4)*255).astype(int)
+                r = int(color[0])
+                g = int(color[1])
+                b = int(color[2])
+                a = int(color[3])
+                texture.set(x, tex_height - y - 1, carla.Color(r,g,b,a))
         
-    #     # https://carla.readthedocs.io/en/0.9.13/python_api/#carla.MaterialParameter
-    #     world.apply_color_texture_to_object(name, carla.MaterialParameter.Diffuse, texture)
+        # https://carla.readthedocs.io/en/0.9.13/python_api/#carla.MaterialParameter
+        world.apply_color_texture_to_object(name, carla.MaterialParameter.Diffuse, texture)
 
-    # for name in names:
-    #     # Modify its texture 
-    #     tex_height = 40
-    #     tex_width = 20
-    #     texture = carla.TextureColor(tex_width,tex_height)
-    #     for x in range(0,tex_width):
-    #         for y in range(0,tex_height):
-    #             color = (np.random.rand(4)*255).astype(int)
-    #             r = int(color[0])
-    #             g = int(color[1])
-    #             b = int(color[2])
-    #             a = int(color[3])
-    #             texture.set(x, tex_height - y - 1, carla.Color(r,g,b,a))
-    #     world.apply_color_texture_to_object(name, carla.MaterialParameter.Normal, texture)
+    for name in names:
+        # Modify its texture 
+        tex_height = 40
+        tex_width = 20
+        texture = carla.TextureColor(tex_width,tex_height)
+        for x in range(0,tex_width):
+            for y in range(0,tex_height):
+                color = (np.random.rand(4)*255).astype(int)
+                r = int(color[0])
+                g = int(color[1])
+                b = int(color[2])
+                a = int(color[3])
+                texture.set(x, tex_height - y - 1, carla.Color(r,g,b,a))
+        world.apply_color_texture_to_object(name, carla.MaterialParameter.Normal, texture)
 
     try:
         # https://carla.readthedocs.io/en/latest/bp_library/#sensor
@@ -201,7 +231,7 @@ def main():
                 sim_data = {k:d for k,d in zip(spec_ctrl.sensors.keys(),received_data[1:])}
 
                 if sim_data['obstacle_detection']:
-                    print(f"Distance to obstable [{sim_data['obstacle_detection'].other_actor.name}] (raycast, ahead): {sim_data['obstacle_detection'].distance}")
+                    print(f"Distance to obstable [{sim_data['obstacle_detection'].other_actor}] (raycast, ahead): {sim_data['obstacle_detection'].distance}")
                 else:
                     print(f"Distance to obstable (raycast, ahead): out of reach")
 
