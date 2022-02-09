@@ -26,10 +26,13 @@ from carlapygamehelper import CarlaPygameHelper
 SIM_FPS = 40
 LIDAR_RANGE = 100
 
+CAM_HEIGHT = 600
+CAM_WIDTH = 800
+
 def main():
     actor_list = []
 
-    pgh = CarlaPygameHelper(height=600, width=800)
+    pgh = CarlaPygameHelper(height=CAM_HEIGHT, width=CAM_WIDTH)
 
     # Connect to the CARLA server
     client = carla.Client('localhost', 2000)
@@ -125,6 +128,8 @@ def main():
 
         # https://carla.readthedocs.io/en/latest/ref_sensors/#rgb-camera
         camera_rgb_bp = world.get_blueprint_library().find('sensor.camera.rgb')
+        camera_rgb_bp.set_attribute('image_size_x', str(CAM_WIDTH))
+        camera_rgb_bp.set_attribute('image_size_y', str(CAM_HEIGHT))
         sensors.append({'name':'camera_rgb','blueprint':camera_rgb_bp})
 
         # https://carla.readthedocs.io/en/latest/ref_sensors/#lidar-sensor
