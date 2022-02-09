@@ -59,7 +59,7 @@ def main():
         world = client.load_world('Town10HD_Opt') #it takes a while to load, so the client timeout needs to afford that.
 
 
-    RADIUS_SELECTION= 100 # since we start at x,y,z = 0,0,0, this will select only things this close
+    RADIUS_SELECTION = 100 # since we start at x,y,z = 0,0,0, this will select only things this close
     all_objects = world.get_names_of_all_objects() # texture only works with these objects
     # https://carla.readthedocs.io/en/0.9.13/python_api/#carla.CityObjectLabel
     level_objects = world.get_environment_objects(object_type=carla.CityObjectLabel.Buildings)
@@ -129,25 +129,25 @@ def main():
 
         # https://carla.readthedocs.io/en/latest/ref_sensors/#lidar-sensor
         lidar_raycast_bp = world.get_blueprint_library().find('sensor.lidar.ray_cast')
-        lidar_raycast_bp.range = LIDAR_RANGE
-        lidar_raycast_bp.upper_fov = 85
-        lidar_raycast_bp.lower_fov = -85
-        lidar_raycast_bp.horizontal_fov = 360
-        lidar_raycast_bp.points_per_second = 10000
-        lidar_raycast_bp.rotation_frequency = 10
-        lidar_raycast_bp.channels = 32
-        lidar_raycast_bp.dropoff_general_rate = 0.0
-        lidar_raycast_bp.dropoff_intensity_limit = 0.0
-        lidar_raycast_bp.dropoff_zero_intensity = 0.0
-        lidar_raycast_bp.noise_stddev = 0.0
+        lidar_raycast_bp.set_attribute("range", str(LIDAR_RANGE))
+        lidar_raycast_bp.set_attribute("upper_fov", "85")
+        lidar_raycast_bp.set_attribute("lower_fov", "-85")
+        lidar_raycast_bp.set_attribute("horizontal_fov", "360")
+        lidar_raycast_bp.set_attribute("points_per_second", "10000")
+        lidar_raycast_bp.set_attribute("rotation_frequency", "10")
+        lidar_raycast_bp.set_attribute("channels", "32")
+        lidar_raycast_bp.set_attribute("dropoff_general_rate", "0.0")
+        lidar_raycast_bp.set_attribute("dropoff_intensity_limit", "0.0")
+        lidar_raycast_bp.set_attribute("dropoff_zero_intensity", "0.0")
+        lidar_raycast_bp.set_attribute("noise_stddev", "0.0")
         sensors.append({'name':'lidar_raycast','blueprint':lidar_raycast_bp})
 
         obstacle_bp = world.get_blueprint_library().find('sensor.other.obstacle')
-        obstacle_bp.distance = 5
-        obstacle_bp.hit_radius = 0.5
-        obstacle_bp.only_dynamics = False
-        obstacle_bp.debug_linetrace = True
-        obstacle_bp.sensor_tick = 0.0
+        obstacle_bp.set_attribute("distance", "5")
+        obstacle_bp.set_attribute("hit_radius", "0.5")
+        obstacle_bp.set_attribute("only_dynamics", "False")
+        obstacle_bp.set_attribute("debug_linetrace", "True")
+        obstacle_bp.set_attribute("sensor_tick", "0.0")
         sensors.append({'name':'obstacle_detection','blueprint':obstacle_bp})
 
         # camera_semantic_bp = world.get_blueprint_library().find('sensor.camera.semantic_segmentation')
