@@ -80,6 +80,7 @@ try:
                 spawn_point = [round(i,1) for i in (spawnPoint.location.x,spawnPoint.location.y,spawnPoint.location.z)]
                 spawn_point_set = tuple([round(i,0) for i in spawn_point])
                 if (newWalker is not None) and (spawn_point_set not in uniqueWalkerSpawnPoints):
+                    newWalker.destroy()
                     uniqueWalkerSpawnPoints.add(spawn_point_set)
                     print(f'{mapID}, {spawn_point[0]}, {spawn_point[1]}, {spawn_point[2]}', file=csvfile)
                     print(f'[{failed_attempts:03d}] - {mapID}, {spawn_point[0]}, {spawn_point[1]}, {spawn_point[2]}')
@@ -90,7 +91,6 @@ try:
                     sampled_pts.set_3d_properties(tmp[:,2])
                     plt.draw()
                     plt.pause(0.01)
-                    newWalker.destroy()
                 else:
                     failed_attempts += 1
                     sleep(0.1)
