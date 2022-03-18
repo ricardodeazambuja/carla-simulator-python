@@ -1,5 +1,6 @@
 import traceback
 import sys
+from os import path
 from time import sleep
 
 import matplotlib.pyplot as plt
@@ -12,10 +13,13 @@ import numpy as np
 import carla
 
 
-NUMBER_OF_SAMPLES = 5000
+NUMBER_OF_SAMPLES = 10000
 MINIMUM_Z = -5
+XSTEP = 0.5
+YSTEP = 0.5
 
-SHOW_PLOT = True
+SHOW_PLOT = False
+SEED = 42
 
 
 LABEL_COLORS = {
@@ -84,12 +88,13 @@ def test_axis(world, curr_location, axis='x', step=1, max_trials=10, dist=1000):
 
 
 try:
+    rs = np.random.RandomState(SEED)
     # setup client/server
     client = carla.Client('localhost', 2000)
     client.set_timeout(10)
     available_maps = client.get_available_maps()
 
-    world = client.load_world(available_maps[0])
+    world = client.get_world()
     settings = world.get_settings()
     settings.fixed_delta_seconds = 1./10
     settings.synchronous_mode = True
@@ -97,13 +102,31 @@ try:
     world.set_weather(getattr(carla.WeatherParameters, 'ClearNoon'))
     world.tick()
 
-    #
-    # Firs move from 0 until it can't find anything at least 5x. Use that as the max. 
-    # Revert and do the same to find the min. Do the same for X and Y axis.
-    #
-    with open(f'elevation_and_semantics.csv','a') as csvfile:
-        print('mapID, label, x, y, z', file=csvfile)
-        for mapID in available_maps:
+
+    maps_to_inspect = available_maps
+    
+    mapDict = {}
+    if path.exists('elevation_and_semantics.csv'):
+        print("Find last mapID, idx and samples")
+        with open('elevation_and_semantics.csv','r') as csvfile:
+            for l in csvfile.read().splitlines()[1:-1]:
+                mapID, seed, idx, samples, _, _, _, _ = l.split(',')
+                mapDict[mapID] = (int(seed), int(idx), int(samples))
+
+        print(mapDict)
+    else:
+        with open('elevation_and_semantics.csv','w') as csvfile:
+            print('mapID, seed, idx, samples, label, x, y, z', file=csvfile)
+
+    with open('elevation_and_semantics.csv','a') as csvfile:
+        for mapID in maps_to_inspect:
+            if mapID in mapDict.keys():
+                samples = mapDict[mapID][2]
+                xi_idx = mapDict[mapID][1]
+            else:
+                samples = 0
+                xi_idx = 0
+
             print(mapID)
             world = client.load_world(mapID)
             world.tick()
@@ -116,7 +139,8 @@ try:
                 x_max = res[1]
                 print(f"x_max: {x_max}")
             else:
-                raise ValueError("No x_max?!?")
+                print("x_max==0?!?")
+                x_max = 0
             
             curr_location = carla.Location(x=0.0,y=0.0,z=1000)
             res = test_axis(world, curr_location, axis='x', step=-10, max_trials=10)
@@ -124,7 +148,8 @@ try:
                 x_min = res[1]
                 print(f"x_min: {x_min}")
             else:
-                raise ValueError("No x_min?!?")
+                print("x_min==0?!?")
+                x_min = 0
 
             # find Y limits
             curr_location = carla.Location(x=0.0,y=0.0,z=1000)
@@ -133,7 +158,8 @@ try:
                 y_max = res[1]
                 print(f"y_max: {y_max}")
             else:
-                raise ValueError("No y_max?!?")
+                print("y_max==0?!?")
+                y_max = 0
             
             curr_location = carla.Location(x=0.0,y=0.0,z=1000)
             res = test_axis(world, curr_location, axis='y', step=-10, max_trials=10)
@@ -141,10 +167,63 @@ try:
                 y_min = res[1]
                 print(f"y_min: {y_min}")
             else:
-                raise ValueError("No y_min?!?")
+                print("y_min==0?!?")
+                y_min = 0
+
+            # if x failed...
+            if (x_min == x_max) and (y_min != y_max):
+                y = y_min + (y_max - y_min)/2
+
+                # find X limits
+                curr_location = carla.Location(x=0.0,y=y,z=1000)
+                res = test_axis(world, curr_location, axis='x', step=10, max_trials=10)
+                if res:
+                    x_max = res[1]
+                    print(f"x_max: {x_max}")
+                else:
+                    raise ValueError("No x_max?!?")
             
-            xy = np.mgrid[x_min:x_max:1, y_min:y_max:1].reshape(2,-1).T
-            np.random.shuffle(xy)
+                curr_location = carla.Location(x=0.0,y=y,z=1000)
+                res = test_axis(world, curr_location, axis='x', step=-10, max_trials=10)
+                if res:
+                    x_min = res[1]
+                    print(f"x_min: {x_min}")
+                else:
+                    raise ValueError("No x_min?!?")
+            
+            # if y failed...
+            elif (x_min != x_max) and (y_min == y_max):
+                x = x_min + (x_max - x_min)/2
+
+                # find Y limits
+                curr_location = carla.Location(x=x,y=0.0,z=1000)
+                res = test_axis(world, curr_location, axis='y', step=10, max_trials=10)
+                if res:
+                    y_max = res[1]
+                    print(f"y_max: {y_max}")
+                else:
+                    raise ValueError("No y_max?!?")
+            
+                curr_location = carla.Location(x=x,y=0.0,z=1000)
+                res = test_axis(world, curr_location, axis='y', step=-10, max_trials=10)
+                if res:
+                    y_min = res[1]
+                    print(f"y_min: {y_min}")
+                else:
+                    raise ValueError("No y_min?!?")
+            elif (x_min != x_max) and (y_min != y_max):
+                pass
+            
+            # if x AND y failed...
+            else:
+                print(f"Problem finding the limits for map {mapID}...")
+                continue
+
+            # generate a HUGE grid... (e.g. if map 600x600 and the step 0.5, it will be 1440000 points!)
+            # if memory is not a problem it should be cheaper than
+            # sampling and testing against a set for every point
+            xy = np.mgrid[x_min:x_max:XSTEP, y_min:y_max:YSTEP].reshape(2,-1).T
+            rs.shuffle(xy)
 
             # Start plotting...
             if SHOW_PLOT: 
@@ -180,9 +259,6 @@ try:
                 plt.ion()
                 plt.show()
 
-
-            samples = 0
-            xi_idx = 0
             curr_location = carla.Location(x=0.0,y=0.0,z=1000)
             while samples<NUMBER_OF_SAMPLES and not button_break:
                 world.tick()
@@ -195,12 +271,11 @@ try:
                     label, loc = res
                     
                     if loc.z < MINIMUM_Z:
-                        print(f'[{samples:03d}] - {mapID}, {label}, {loc.x}, {loc.y}, {loc.z} - IGNORED!')
+                        # print(f'[{samples:03d}] - {mapID}, {SEED}, {xi_idx-1}, {samples}, {label}, {loc.x}, {loc.y}, {loc.z} - IGNORED!')
                         continue
 
-                    print('mapID, label, x, y, z', file=csvfile)
-                    print(f'{mapID}, {label}, {loc.x}, {loc.y}, {loc.z}', file=csvfile)
-                    print(f'[{samples:03d}] - {mapID}, {label}, {loc.x}, {loc.y}, {loc.z}')
+                    print(f'{mapID}, {SEED}, {xi_idx-1}, {samples}, {label}, {loc.x}, {loc.y}, {loc.z}', file=csvfile)
+                    # print(f'[{samples:03d}] - {mapID}, {SEED}, {xi_idx-1}, {samples}, {label}, {loc.x}, {loc.y}, {loc.z}')
 
                     if SHOW_PLOT:
                         samples_float[label].append([loc.x, loc.y, loc.z])
