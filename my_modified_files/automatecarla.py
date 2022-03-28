@@ -1,8 +1,3 @@
-from time import sleep
-from subprocess import Popen, PIPE, TimeoutExpired
-from threading import Thread
-import psutil
-import carla
 """Manage carla server container and external processes
 
 It's up to the external process to gracefully die before procs_timeout... or it will be killed.
@@ -10,6 +5,12 @@ When external_processes=[] the server will be killed and relaunched and the exte
 will have to detect that, but my experience tell me the API will crash if you just keep creating 
 new carla.Clients inside the same script.
 """
+
+from time import sleep
+from subprocess import Popen, PIPE, TimeoutExpired
+from threading import Thread
+import psutil
+import carla
 
 class AutomateCarla:
     def __init__(self, carla_timeout=10, procs_timeout=10, external_processes=[]):
@@ -120,7 +121,7 @@ class AutomateCarla:
 if __name__ == "__main__":
     import os
     # path = os.path.dirname(os.path.realpath(__file__))
-    # a = AutomateCarla(procs_timeout=20, external_processes=['python3 ' + path+'/getElevationSemantics.py'])
+    # a = AutomateCarla(procs_timeout=20, external_processes=[['python3 ' + path+'/getElevationSemantics.py']])
 
     # With an empty list for the external processes it will just relaunch carla server container
     a = AutomateCarla(procs_timeout=10, external_processes=[])
