@@ -12,6 +12,7 @@
 
 TOWN_NAME = 'Town10HD_Opt'
 
+from cProfile import label
 import math
 import random
 
@@ -29,18 +30,34 @@ LIDAR_RANGE = 100
 CAM_HEIGHT = 600
 CAM_WIDTH = 800
 
+
+
+def sample_height(world, curr_loc, dist=10000):
+    labelled_pnts = (world.cast_ray(curr_loc, carla.Location(x=curr_loc.x,y=curr_loc.y,z=-dist)) or [None]) # it will return an ordered list
+
+    if labelled_pnts:
+        for l in labelled_pnts:
+            if l:
+                if str(l.label) != "NONE":
+                    break
+    if l:
+        return l.label,l.location
+
+
+
 def main():
     actor_list = []
 
     pgh = CarlaPygameHelper(height=CAM_HEIGHT, width=CAM_WIDTH)
 
     # Connect to the CARLA server
-    client = carla.Client('localhost', 2000)
+    client = carla.Client('carla-container.local', 2000)
     client.set_timeout(10.0)
     world = client.get_world()
+    available_maps = client.get_available_maps()
 
     print(f"Available maps: \n{client.get_available_maps()}")
-
+    
     # Useful for randomization as well
     map_layer_names = [
                         carla.MapLayer.NONE,
@@ -58,23 +75,26 @@ def main():
     # world.unload_map_layer(carla.MapLayer.Buildings)
     # world.load_map_layer(carla.MapLayer.Buildings)
 
-    if world.get_map().name.split('/')[-1] != 'Town10HD_Opt':
-        world = client.load_world('Town10HD_Opt') #it takes a while to load, so the client timeout needs to afford that.
+    load_town = "/Game/Carla/Maps/Town03"
+    print(f"Current map: {world.get_map().name.split('/')[-1]}")
+    print(f"Loading {load_town}")
+    if world.get_map().name.split('/')[-1] != load_town:#'Town10HD_Opt':
+        world = client.load_world(load_town) #it takes a while to load, so the client timeout needs to afford that.
 
 
-    RADIUS_SELECTION = 100 # since we start at x,y,z = 0,0,0, this will select only things this close
-    all_objects = world.get_names_of_all_objects() # texture only works with these objects
-    # https://carla.readthedocs.io/en/0.9.13/python_api/#carla.CityObjectLabel
-    level_objects = world.get_environment_objects(object_type=carla.CityObjectLabel.Buildings)
-    names = set()
-    for o in level_objects:
-        loc = o.transform.location
-        radius = (loc.x**2+loc.y**2+loc.z**2)**(1/2)
-        if radius < RADIUS_SELECTION:
-            for name in all_objects:
-                if name in o.name:
-                    names.add(name)
-                    break
+    # RADIUS_SELECTION = 100 # since we start at x,y,z = 0,0,0, this will select only things this close
+    # all_objects = world.get_names_of_all_objects() # texture only works with these objects
+    # # https://carla.readthedocs.io/en/0.9.13/python_api/#carla.CityObjectLabel
+    # level_objects = world.get_environment_objects(object_type=carla.CityObjectLabel.Buildings)
+    # names = set()
+    # for o in level_objects:
+    #     loc = o.transform.location
+    #     radius = (loc.x**2+loc.y**2+loc.z**2)**(1/2)
+    #     if radius < RADIUS_SELECTION:
+    #         for name in all_objects:
+    #             if name in o.name:
+    #                 names.add(name)
+    #                 break
 
     # # Randomly disable objects
     # target_ids = []
@@ -88,38 +108,38 @@ def main():
     
     # Example of texture randomization
     # (here they use images instead = https://github.com/carla-simulator/carla/blob/master/PythonAPI/util/apply_texture.py)
-    print("Randomizing textures...")
-    for name in names:
-        # Modify its texture 
-        tex_height = 40
-        tex_width = 20
-        texture = carla.TextureColor(tex_width,tex_height)
-        for x in range(0,tex_width):
-            for y in range(0,tex_height):
-                color = (np.random.rand(4)*255).astype(int)
-                r = int(color[0])
-                g = int(color[1])
-                b = int(color[2])
-                a = int(color[3])
-                texture.set(x, tex_height - y - 1, carla.Color(r,g,b,a))
+    # print("Randomizing textures...")
+    # for name in names:
+    #     # Modify its texture 
+    #     tex_height = 40
+    #     tex_width = 20
+    #     texture = carla.TextureColor(tex_width,tex_height)
+    #     for x in range(0,tex_width):
+    #         for y in range(0,tex_height):
+    #             color = (np.random.rand(4)*255).astype(int)
+    #             r = int(color[0])
+    #             g = int(color[1])
+    #             b = int(color[2])
+    #             a = int(color[3])
+    #             texture.set(x, tex_height - y - 1, carla.Color(r,g,b,a))
         
-        # https://carla.readthedocs.io/en/0.9.13/python_api/#carla.MaterialParameter
-        world.apply_color_texture_to_object(name, carla.MaterialParameter.Diffuse, texture)
+    #     # https://carla.readthedocs.io/en/0.9.13/python_api/#carla.MaterialParameter
+    #     world.apply_color_texture_to_object(name, carla.MaterialParameter.Diffuse, texture)
 
-    for name in names:
-        # Modify its texture 
-        tex_height = 40
-        tex_width = 20
-        texture = carla.TextureColor(tex_width,tex_height)
-        for x in range(0,tex_width):
-            for y in range(0,tex_height):
-                color = (np.random.rand(4)*255).astype(int)
-                r = int(color[0])
-                g = int(color[1])
-                b = int(color[2])
-                a = int(color[3])
-                texture.set(x, tex_height - y - 1, carla.Color(r,g,b,a))
-        world.apply_color_texture_to_object(name, carla.MaterialParameter.Normal, texture)
+    # for name in names:
+    #     # Modify its texture 
+    #     tex_height = 40
+    #     tex_width = 20
+    #     texture = carla.TextureColor(tex_width,tex_height)
+    #     for x in range(0,tex_width):
+    #         for y in range(0,tex_height):
+    #             color = (np.random.rand(4)*255).astype(int)
+    #             r = int(color[0])
+    #             g = int(color[1])
+    #             b = int(color[2])
+    #             a = int(color[3])
+    #             texture.set(x, tex_height - y - 1, carla.Color(r,g,b,a))
+    #     world.apply_color_texture_to_object(name, carla.MaterialParameter.Normal, texture)
 
     try:
         # https://carla.readthedocs.io/en/latest/bp_library/#sensor
@@ -132,28 +152,28 @@ def main():
         camera_rgb_bp.set_attribute('image_size_y', str(CAM_HEIGHT))
         sensors.append({'name':'camera_rgb','blueprint':camera_rgb_bp})
 
-        # https://carla.readthedocs.io/en/latest/ref_sensors/#lidar-sensor
-        lidar_raycast_bp = world.get_blueprint_library().find('sensor.lidar.ray_cast')
-        lidar_raycast_bp.set_attribute("range", str(LIDAR_RANGE))
-        lidar_raycast_bp.set_attribute("upper_fov", "85")
-        lidar_raycast_bp.set_attribute("lower_fov", "-85")
-        lidar_raycast_bp.set_attribute("horizontal_fov", "360")
-        lidar_raycast_bp.set_attribute("points_per_second", "10000")
-        lidar_raycast_bp.set_attribute("rotation_frequency", "10")
-        lidar_raycast_bp.set_attribute("channels", "32")
-        lidar_raycast_bp.set_attribute("dropoff_general_rate", "0.0")
-        lidar_raycast_bp.set_attribute("dropoff_intensity_limit", "0.0")
-        lidar_raycast_bp.set_attribute("dropoff_zero_intensity", "0.0")
-        lidar_raycast_bp.set_attribute("noise_stddev", "0.0")
-        sensors.append({'name':'lidar_raycast','blueprint':lidar_raycast_bp})
+        # # https://carla.readthedocs.io/en/latest/ref_sensors/#lidar-sensor
+        # lidar_raycast_bp = world.get_blueprint_library().find('sensor.lidar.ray_cast')
+        # lidar_raycast_bp.set_attribute("range", str(LIDAR_RANGE))
+        # lidar_raycast_bp.set_attribute("upper_fov", "85")
+        # lidar_raycast_bp.set_attribute("lower_fov", "-85")
+        # lidar_raycast_bp.set_attribute("horizontal_fov", "360")
+        # lidar_raycast_bp.set_attribute("points_per_second", "10000")
+        # lidar_raycast_bp.set_attribute("rotation_frequency", "10")
+        # lidar_raycast_bp.set_attribute("channels", "32")
+        # lidar_raycast_bp.set_attribute("dropoff_general_rate", "0.0")
+        # lidar_raycast_bp.set_attribute("dropoff_intensity_limit", "0.0")
+        # lidar_raycast_bp.set_attribute("dropoff_zero_intensity", "0.0")
+        # lidar_raycast_bp.set_attribute("noise_stddev", "0.0")
+        # sensors.append({'name':'lidar_raycast','blueprint':lidar_raycast_bp})
 
-        obstacle_bp = world.get_blueprint_library().find('sensor.other.obstacle')
-        obstacle_bp.set_attribute("distance", "5")
-        obstacle_bp.set_attribute("hit_radius", "0.5")
-        obstacle_bp.set_attribute("only_dynamics", "False")
-        obstacle_bp.set_attribute("debug_linetrace", "True")
-        obstacle_bp.set_attribute("sensor_tick", "0.0")
-        sensors.append({'name':'obstacle_detection','blueprint':obstacle_bp})
+        # obstacle_bp = world.get_blueprint_library().find('sensor.other.obstacle')
+        # obstacle_bp.set_attribute("distance", "5")
+        # obstacle_bp.set_attribute("hit_radius", "0.5")
+        # obstacle_bp.set_attribute("only_dynamics", "False")
+        # obstacle_bp.set_attribute("debug_linetrace", "True")
+        # obstacle_bp.set_attribute("sensor_tick", "0.0")
+        # sensors.append({'name':'obstacle_detection','blueprint':obstacle_bp})
 
         # camera_semantic_bp = world.get_blueprint_library().find('sensor.camera.semantic_segmentation')
         # sensors.append({'name':'camera_semantic','blueprint':camera_semantic_bp})
@@ -233,62 +253,78 @@ def main():
                 # snapshot, image_rgb, image_semantic = sync_mode.tick(timeout=2.0)
                 received_data = sync_mode.tick(timeout=1/SIM_FPS)
                 snapshot = received_data[0]
+                if snapshot == None:
+                    print("No snapshot...")
+                    continue
+                
                 sim_data = {k:d for k,d in zip(spec_ctrl.sensors.keys(),received_data[1:])}
 
-                if sim_data['obstacle_detection']:
-                    print(f"Distance to obstable [{sim_data['obstacle_detection'].other_actor}] (raycast, ahead): {sim_data['obstacle_detection'].distance}")
-                else:
-                    print(f"Distance to obstable (raycast, ahead): out of reach")
+                # if sim_data['obstacle_detection']:
+                #     print(f"Distance to obstable [{sim_data['obstacle_detection'].other_actor}] (raycast, ahead): {sim_data['obstacle_detection'].distance}")
+                # else:
+                #     print(f"Distance to obstable (raycast, ahead): out of reach")
 
 
-                if sim_data['lidar_raycast']:
-                    # https://github.com/carla-simulator/carla/blob/master/PythonAPI/examples/lidar_to_camera.py
-                    # Get the lidar data and convert it to a numpy array.
-                    p_cloud_size = len(sim_data['lidar_raycast'])
-                    p_cloud = np.copy(np.frombuffer(sim_data['lidar_raycast'].raw_data, dtype=np.dtype('f4')))
-                    p_cloud = np.reshape(p_cloud, (p_cloud_size, 4))
+                # if sim_data['lidar_raycast']:
+                #     # https://github.com/carla-simulator/carla/blob/master/PythonAPI/examples/lidar_to_camera.py
+                #     # Get the lidar data and convert it to a numpy array.
+                #     p_cloud_size = len(sim_data['lidar_raycast'])
+                #     p_cloud = np.copy(np.frombuffer(sim_data['lidar_raycast'].raw_data, dtype=np.dtype('f4')))
+                #     p_cloud = np.reshape(p_cloud, (p_cloud_size, 4))
 
-                    distance_from_lidar = np.sqrt(np.power(p_cloud[:, :3],2).sum(axis=1))
-                    print(f"Distance to obstables (from Lidar {sim_data['lidar_raycast'].horizontal_angle}): {distance_from_lidar.min()}")
+                #     distance_from_lidar = np.sqrt(np.power(p_cloud[:, :3],2).sum(axis=1))
+                #     print(f"Distance to obstables (from Lidar {sim_data['lidar_raycast'].horizontal_angle}): {distance_from_lidar.min()}")
 
-                    # Lidar intensity array of shape (p_cloud_size,) but, for now, let's
-                    # focus on the 3D points.
-                    intensity = np.array(p_cloud[:, 3])
+                #     # Lidar intensity array of shape (p_cloud_size,) but, for now, let's
+                #     # focus on the 3D points.
+                #     intensity = np.array(p_cloud[:, 3])
 
-                    # Point cloud in lidar sensor space array of shape (3, p_cloud_size).
-                    local_lidar_points = np.array(p_cloud[:, :3]).T
+                #     # Point cloud in lidar sensor space array of shape (3, p_cloud_size).
+                #     local_lidar_points = np.array(p_cloud[:, :3]).T
 
-                    # Add an extra 1.0 at the end of each 3d point so it becomes of
-                    # shape (4, p_cloud_size) and it can be multiplied by a (4, 4) matrix.
-                    local_lidar_points = np.r_[
-                        local_lidar_points, [np.ones(local_lidar_points.shape[1])]]
+                #     # Add an extra 1.0 at the end of each 3d point so it becomes of
+                #     # shape (4, p_cloud_size) and it can be multiplied by a (4, 4) matrix.
+                #     local_lidar_points = np.r_[
+                #         local_lidar_points, [np.ones(local_lidar_points.shape[1])]]
 
-                    # This (4, 4) matrix transforms the points from lidar space to world space.
-                    lidar_2_world = spec_ctrl.sensors['lidar_raycast'].get_transform().get_matrix()
+                #     # This (4, 4) matrix transforms the points from lidar space to world space.
+                #     lidar_2_world = spec_ctrl.sensors['lidar_raycast'].get_transform().get_matrix()
 
-                    # Transform the points from lidar space to world space.
-                    world_points = np.dot(lidar_2_world, local_lidar_points)
-                else:
-                    print(f"Distance to obstables (from Lidar): out of reach")
+                #     # Transform the points from lidar space to world space.
+                #     world_points = np.dot(lidar_2_world, local_lidar_points)
+                # else:
+                #     print(f"Distance to obstables (from Lidar): out of reach")
 
                 # image_semseg.convert(carla.ColorConverter.CityScapesPalette)
                 fps = round(1.0 / snapshot.timestamp.delta_seconds)
+
+                # direction = carla.Vector3D(curr_loc.x, curr_loc.y, -curr_loc.z)
+                # labelled_pnt = world.project_point(curr_loc, 
+                #                                    direction, 
+                #                                    10000) # it will return only the first surface
+                # if labelled_pnt:
+                #     print("Project: ", labelled_pnt.label, labelled_pnt.location)
+                res = sample_height(world, curr_loc)
+                if res:
+                    label, loc = res
+                    print(label, loc)
+
 
                 # Draw the display.
                 if sim_data['camera_rgb']:
                     pgh.draw_image(sim_data['camera_rgb'])
                 
-                # Overlay the semantic segmentation
-                # image_semantic.convert(carla.ColorConverter.CityScapesPalette)
-                # pgh.draw_image(image_semantic, blend=True)
+                    # Overlay the semantic segmentation
+                    # image_semantic.convert(carla.ColorConverter.CityScapesPalette)
+                    # pgh.draw_image(image_semantic, blend=True)
 
-                msg = 'UpKey:Forward, DownKey:Backward, LeftKey:+Yaw, RightKey:-Yaw, W:+Pitch, S:-Pitch, SPACE: Stop, ESC: Exit'
-                pgh.blit(pgh.font.render(msg, True, (255, 255, 255)), (8, 10))
-                pgh.blit(pgh.font.render(f'{pgh.clock.get_fps()} FPS (real)', True, (255, 255, 255)), (8, 30))
-                pgh.blit(pgh.font.render(f'{fps} FPS (simulated)', True, (255, 255, 255)), (8, 50))
-                pgh.blit(pgh.font.render(f'{spec_ctrl.spectator.get_transform().location}', True, (255, 255, 255)), (8, 70))
-                pgh.blit(pgh.font.render(f'{spec_ctrl.spectator.get_transform().rotation}', True, (255, 255, 255)), (8, 90))
-                pgh.flip()
+                    msg = 'UpKey:Forward, DownKey:Backward, LeftKey:+Yaw, RightKey:-Yaw, W:+Pitch, S:-Pitch, SPACE: Stop, ESC: Exit'
+                    pgh.blit(pgh.font.render(msg, True, (255, 255, 255)), (8, 10))
+                    pgh.blit(pgh.font.render(f'{pgh.clock.get_fps()} FPS (real)', True, (255, 255, 255)), (8, 30))
+                    pgh.blit(pgh.font.render(f'{fps} FPS (simulated)', True, (255, 255, 255)), (8, 50))
+                    pgh.blit(pgh.font.render(f'{spec_ctrl.spectator.get_transform().location}', True, (255, 255, 255)), (8, 70))
+                    pgh.blit(pgh.font.render(f'{spec_ctrl.spectator.get_transform().rotation}', True, (255, 255, 255)), (8, 90))
+                    pgh.flip()
 
     finally:
 

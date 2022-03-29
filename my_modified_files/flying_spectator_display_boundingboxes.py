@@ -14,6 +14,8 @@
 """
 
 TOWN_NAME = 'Town10HD_Opt'
+MASTER = False
+SIM_FPS = 20
 
 import random
 
@@ -46,8 +48,9 @@ def main():
     client.set_timeout(10.0)
     world = client.get_world()
 
-    if world.get_map().name.split('/')[-1] != 'Town10HD_Opt':
-        world = client.load_world('Town10HD_Opt') #it takes a while to load, so the client timeout needs to afford that.
+    if MASTER:
+        if world.get_map().name.split('/')[-1] != TOWN_NAME:
+            world = client.load_world(TOWN_NAME) #it takes a while to load, so the client timeout needs to afford that.
     
     try:
         camera_transform = carla.Transform(carla.Location(x=2, y=0, z=1.2), carla.Rotation(yaw=0, pitch=-15))
@@ -94,7 +97,9 @@ def main():
         level_objects = world.get_environment_objects(object_type=carla.CityObjectLabel.Vehicles)
         track_objects = list(vehicles) + list(level_objects)
 
-        with CarlaSyncMode(world, sensors_list, fps=20) as sync_mode:
+        print("Starting...")
+        with CarlaSyncMode(world, sensors_list, fps=SIM_FPS, master=MASTER) as sync_mode:
+            print("Loop...")
             while True:
                 if pgh.should_quit():
                     return
@@ -104,62 +109,75 @@ def main():
 
                 # Advance the simulation and wait for the data.
                 # The order below follows the sensor_list!
-                snapshot, image_rgb, image_semantic = sync_mode.tick(timeout=2.0)
-                
+                if sync_mode.master:
+                    received_data = sync_mode.tick(timeout=1/SIM_FPS)
+                else:
+                    received_data = sync_mode.tick(timeout=1)
+
+                snapshot = received_data[0]
+                if snapshot == None:
+                    print("No snapshot...")
+                    continue
+
+                sim_data = {k:d for k,d in zip(spec_ctrl.sensors.keys(),received_data[1:])}
+
                 # image_semseg.convert(carla.ColorConverter.CityScapesPalette)
                 fps = round(1.0 / snapshot.timestamp.delta_seconds)
                 
                 # Process semantic segmentation
-                array = np.frombuffer(image_semantic.raw_data, dtype=np.dtype("uint8"))
-                array = np.reshape(array, (image_semantic.height, image_semantic.width, 4))
-                array = array[:, :, :3]
-                array = array[:, :, ::-1]
-                array = array.swapaxes(0, 1)
-                masked = np.zeros(array.shape[:2], dtype=np.uint8)
-                
-                # Vehicles (10)
-                mask = array[..., 0] == 10 # https://carla.readthedocs.io/en/0.9.12/ref_sensors/#semantic-segmentation-camera
-                masked[mask] = 1
+                if sim_data['camera_semantic']:
+                    array = np.frombuffer(sim_data['camera_semantic'].raw_data, dtype=np.dtype("uint8"))
+                    array = np.reshape(array, (sim_data['camera_semantic'].height, sim_data['camera_semantic'].width, 4))
+                    array = array[:, :, :3]
+                    array = array[:, :, ::-1]
+                    array = array.swapaxes(0, 1)
+                    masked = np.zeros(array.shape[:2], dtype=np.uint8)
+                    
+                    # Vehicles (10)
+                    mask = array[..., 0] == 10 # https://carla.readthedocs.io/en/0.9.12/ref_sensors/#semantic-segmentation-camera
+                    masked[mask] = 1
 
                 # Draw the display.
-                pgh.draw_image(image_rgb)
+                if sim_data['camera_rgb']:
+                    pgh.draw_image(sim_data['camera_rgb'])
 
                 # Overlay the semantic segmentation
-                image_semantic.convert(carla.ColorConverter.CityScapesPalette)
-                pgh.draw_image(image_semantic, blend=True)
+                if sim_data['camera_semantic']:
+                    sim_data['camera_semantic'].convert(carla.ColorConverter.CityScapesPalette)
+                    pgh.draw_image(sim_data['camera_semantic'], blend=True)
 
-                bounding_boxes = cbbh.get_bounding_boxes(spec_ctrl.sensors['camera_rgb'], track_objects, max_track_dist=100)
+                    bounding_boxes = cbbh.get_bounding_boxes(spec_ctrl.sensors['camera_rgb'], track_objects, max_track_dist=100)
 
-                bboxes2D = []
-                for bbox in bounding_boxes:
-                    bbox[bbox < 0] = 0
-                    xmax = int(min(VIEW_WIDTH, bbox[:,0].max()))
-                    ymax = int(min(VIEW_HEIGHT, bbox[:,1].max()))
-                    xmin = int(bbox[:,0].min())
-                    ymin = int(bbox[:,1].min())
-                    bboxes2D.append([(xmax, ymax),
-                                     (xmin, ymin)])
+                    bboxes2D = []
+                    for bbox in bounding_boxes:
+                        bbox[bbox < 0] = 0
+                        xmax = int(min(VIEW_WIDTH, bbox[:,0].max()))
+                        ymax = int(min(VIEW_HEIGHT, bbox[:,1].max()))
+                        xmin = int(bbox[:,0].min())
+                        ymin = int(bbox[:,1].min())
+                        bboxes2D.append([(xmax, ymax),
+                                        (xmin, ymin)])
 
-                # Filter bboxes that match the mask                
-                MIN_PIXELS_MASK = 100
-                bboxes2D_filtered = []
-                bboxes_filtered = []
-                for bi, bbox in enumerate(bboxes2D):
-                    if len(masked):
-                        if masked[bbox[1][0]:bbox[0][0], bbox[1][1]:bbox[0][1]].sum() > MIN_PIXELS_MASK:
-                            masked[bbox[1][0]:bbox[0][0], bbox[1][1]:bbox[0][1]] = bi+1 # mark where the bbox is
-                                                                                        # The "+1" is because 0 is the default value
-                            # The list was ordered to put the objects that are closer (therefore probably bigger on the camera plane), last.
+                    # Filter bboxes that match the mask                
+                    MIN_PIXELS_MASK = 100
+                    bboxes2D_filtered = []
+                    bboxes_filtered = []
+                    for bi, bbox in enumerate(bboxes2D):
+                        if len(masked):
+                            if masked[bbox[1][0]:bbox[0][0], bbox[1][1]:bbox[0][1]].sum() > MIN_PIXELS_MASK:
+                                masked[bbox[1][0]:bbox[0][0], bbox[1][1]:bbox[0][1]] = bi+1 # mark where the bbox is
+                                                                                            # The "+1" is because 0 is the default value
+                                # The list was ordered to put the objects that are closer (therefore probably bigger on the camera plane), last.
 
-                # It needs to be 2 loops because it will initially fill the masked pixels with indices that intersect
-                for bi, bbox in enumerate(bboxes2D):
-                    if len(masked):
-                        if (masked[bbox[1][0]:bbox[0][0], bbox[1][1]:bbox[0][1]] == bi+1).sum() > MIN_PIXELS_MASK: # The "+1" is because 0 is the default value
-                            bboxes2D_filtered.append(bbox)
-                            bboxes_filtered.append(bounding_boxes[bi])
+                    # It needs to be 2 loops because it will initially fill the masked pixels with indices that intersect
+                    for bi, bbox in enumerate(bboxes2D):
+                        if len(masked):
+                            if (masked[bbox[1][0]:bbox[0][0], bbox[1][1]:bbox[0][1]] == bi+1).sum() > MIN_PIXELS_MASK: # The "+1" is because 0 is the default value
+                                bboxes2D_filtered.append(bbox)
+                                bboxes_filtered.append(bounding_boxes[bi])
 
-                cbbh.draw_bounding_boxes(bboxes_filtered, pgh.display, pygame, BB_COLOR=(0,255,0))
-                cbbh.draw_bounding_boxes(bboxes2D_filtered, pgh.display, pygame) # standard color
+                    cbbh.draw_bounding_boxes(bboxes_filtered, pgh.display, pygame, BB_COLOR=(0,255,0))
+                    cbbh.draw_bounding_boxes(bboxes2D_filtered, pgh.display, pygame) # standard color
 
 
                 msg = 'UpKey:Forward, DownKey:Backward, LeftKey:+Yaw, RightKey:-Yaw, W:+Pitch, S:-Pitch, SPACE: Stop, ESC: Exit'
