@@ -30,9 +30,11 @@ USER carla
 # Done!
 
 ADD --chown=carla:carla launch_headless.sh /home/carla/launch_headless.sh
+ADD --chown=carla:carla launch_nosound.sh /home/carla/launch_nosound.sh
 
 # Make the script above executable
 RUN chmod +x /home/carla/launch_headless.sh
+RUN chmod +x /home/carla/launch_nosound.sh
 
 # Download and install additional maps
 RUN wget -O AdditionalMaps_0.9.13.tar.gz https://carla-releases.s3.eu-west-3.amazonaws.com/Linux/AdditionalMaps_0.9.13.tar.gz && \
