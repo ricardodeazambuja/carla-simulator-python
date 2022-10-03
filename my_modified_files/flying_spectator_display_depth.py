@@ -26,11 +26,14 @@ from carlasyncmode import CarlaSyncMode
 from spectatorcontroller import SpectatorController
 from carlapygamehelper import CarlaPygameHelper
 
-SIM_FPS = 40
-LIDAR_RANGE = 100
 
-CAM_HEIGHT = 600
-CAM_WIDTH = 800
+from PIL import Image
+
+SIM_FPS = 40
+MAX_DEPTH_DIST = 1000
+
+CAM_HEIGHT = 480
+CAM_WIDTH = 640
 
 
 
@@ -159,11 +162,6 @@ def main():
                 #                           pitch=spec_ctrl.transform['rot'][1]),
                 #                           yaw=spec_ctrl.transform['rot'][2])
 
-                
-                next_rot = carla.Rotation(roll=spec_ctrl.transform['rot'][0]+curr_rot.roll,
-                                          pitch=max(-89.9, min(89.9, spec_ctrl.transform['rot'][1]+curr_rot.pitch)),
-                                          yaw=spec_ctrl.transform['rot'][2]+curr_rot.yaw)
-
                 spec_ctrl.spectator.set_transform(carla.Transform(next_loc, next_rot)) # it will continuously apply the transformation
 
                 # Advance the simulation and wait for the data.
@@ -178,12 +176,6 @@ def main():
 
                 fps = round(1.0 / snapshot.timestamp.delta_seconds)
 
-                res = sample_height(world, curr_loc)
-                if res:
-                    label, loc = res
-                    print(label, loc)
-
-
                 # Draw the display.
                 if sim_data['camera_depth']:
                     
@@ -193,20 +185,25 @@ def main():
                         shape=(carla_image.height, carla_image.width, 4),
                         dtype=np.uint8, buffer=carla_image.raw_data)
                     scales = np.array([65536.0, 256.0, 1.0, 0]) / (256**3 - 1) * 1000
-                    depth_image = np.dot(bgra_image, scales).astype(np.float32).swapaxes(0, 1)
-                    depth_image_255 = (255*depth_image/1000).astype('uint8')
-                    array = depth_image_255[..., np.newaxis]
+                    depth_image = np.dot(bgra_image, scales).astype(np.float32) # max value 1000m
+
+                    depth_image[depth_image>MAX_DEPTH_DIST] = MAX_DEPTH_DIST
+                    depth_image_255 = (255*depth_image/MAX_DEPTH_DIST).astype('uint8')
+
+                    #Image.fromarray(depth_image_255).save("test.png")
+
+                    array = depth_image_255[..., np.newaxis].swapaxes(0, 1)
                     array = np.repeat(array[:, :, :], 3, axis=2)
                     image_surface = spec_ctrl.pygame.surfarray.make_surface(array)
                     pgh.display.blit(image_surface, (0, 0))
                 
 
-                    msg = 'UpKey:Forward, DownKey:Backward, LeftKey:+Yaw, RightKey:-Yaw, W:+Pitch, S:-Pitch, SPACE: Stop, ESC: Exit'
-                    pgh.blit(pgh.font.render(msg, True, (255, 255, 255)), (8, 10))
-                    pgh.blit(pgh.font.render(f'{pgh.clock.get_fps()} FPS (real)', True, (255, 255, 255)), (8, 30))
-                    pgh.blit(pgh.font.render(f'{fps} FPS (simulated)', True, (255, 255, 255)), (8, 50))
-                    pgh.blit(pgh.font.render(f'{spec_ctrl.spectator.get_transform().location}', True, (255, 255, 255)), (8, 70))
-                    pgh.blit(pgh.font.render(f'{spec_ctrl.spectator.get_transform().rotation}', True, (255, 255, 255)), (8, 90))
+                    msg = 'Up/Down Keys:Forward/Backward, Left/Right Keys:+/-Yaw, W/S:+/-Pitch, SPACE:Stop, ESC:Exit'
+                    pgh.blit(pgh.font.render(msg, True, (255, 0, 0)), (8, 10))
+                    pgh.blit(pgh.font.render(f'{pgh.clock.get_fps()} FPS (real)', True, (255, 0, 0)), (8, 30))
+                    pgh.blit(pgh.font.render(f'{fps} FPS (simulated)', True, (255, 0, 0)), (8, 50))
+                    pgh.blit(pgh.font.render(f'{spec_ctrl.spectator.get_transform().location}', True, (255, 0, 0)), (8, 70))
+                    pgh.blit(pgh.font.render(f'{spec_ctrl.spectator.get_transform().rotation}', True, (255, 0, 0)), (8, 90))
                     pgh.flip()
 
     finally:
