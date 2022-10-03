@@ -14,7 +14,7 @@
 """
 
 TOWN_NAME = 'Town10HD_Opt'
-MASTER = False
+MASTER = True
 SIM_FPS = 20
 
 import random
@@ -94,8 +94,34 @@ def main():
         blueprints = [random.choice(all_blueprints) for i in range(N)]
         cbbh.spawn_actors(world, actor_list, spawn_points=spawn_points, blueprints=blueprints)
         vehicles = world.get_actors().filter('vehicle.*')
-        level_objects = world.get_environment_objects(object_type=carla.CityObjectLabel.Vehicles)
-        track_objects = list(vehicles) + list(level_objects)
+
+        # https://carla.readthedocs.io/en/0.9.13/python_api/#carla.CityObjectLabel
+        level_objects_vehicles = world.get_environment_objects(object_type=carla.CityObjectLabel.Vehicles)
+        level_objects_buildings = world.get_environment_objects(object_type=carla.CityObjectLabel.Buildings)
+        level_objects_fences = world.get_environment_objects(object_type=carla.CityObjectLabel.Fences)
+        level_objects_poles = world.get_environment_objects(object_type=carla.CityObjectLabel.Poles)
+        level_objects_traffic_signs = world.get_environment_objects(object_type=carla.CityObjectLabel.TrafficSigns)
+        level_objects_vegetation = world.get_environment_objects(object_type=carla.CityObjectLabel.Vegetation)
+        level_objects_walls = world.get_environment_objects(object_type=carla.CityObjectLabel.Walls)
+        level_objects_bridge = world.get_environment_objects(object_type=carla.CityObjectLabel.Bridge)
+        level_objects_railtrack = world.get_environment_objects(object_type=carla.CityObjectLabel.RailTrack)
+        level_objects_guardrail = world.get_environment_objects(object_type=carla.CityObjectLabel.GuardRail)
+        level_objects_traffic_light = world.get_environment_objects(object_type=carla.CityObjectLabel.TrafficLight)
+
+        print(level_objects_buildings)
+        exit(1)
+
+        track_objects =  list(vehicles) + list(level_objects_vehicles) 
+        # track_objects += list(level_objects_buildings)
+        # track_objects += list(level_objects_fences)
+        # track_objects += list(level_objects_poles)
+        # track_objects += list(level_objects_traffic_signs)
+        # track_objects += list(level_objects_vegetation)
+        # track_objects += list(level_objects_walls)
+        # track_objects += list(level_objects_bridge)
+        # track_objects += list(level_objects_railtrack)
+        # track_objects += list(level_objects_guardrail)
+        # track_objects += list(level_objects_traffic_light)
 
         print("Starting...")
         with CarlaSyncMode(world, sensors_list, fps=SIM_FPS, master=MASTER) as sync_mode:
@@ -176,7 +202,7 @@ def main():
                                 bboxes2D_filtered.append(bbox)
                                 bboxes_filtered.append(bounding_boxes[bi])
 
-                    cbbh.draw_bounding_boxes(bboxes_filtered, pgh.display, pygame, BB_COLOR=(0,255,0))
+                    #cbbh.draw_bounding_boxes(bboxes_filtered, pgh.display, pygame, BB_COLOR=(0,255,0))
                     cbbh.draw_bounding_boxes(bboxes2D_filtered, pgh.display, pygame) # standard color
 
 
