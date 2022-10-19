@@ -25,6 +25,8 @@ class SpectatorController():
         from pygame.locals import K_s
         from pygame.locals import K_a
         from pygame.locals import K_d
+        from pygame.locals import K_z
+        from pygame.locals import K_x
 
         self.pygame = pygame
         self.K_SPACE = K_SPACE
@@ -38,6 +40,8 @@ class SpectatorController():
         self.K_s = K_s
         self.K_a = K_a
         self.K_d = K_d
+        self.K_z = K_z
+        self.K_x = K_x
 
         for sensor in sensors:
             name = sensor['name']
