@@ -170,6 +170,10 @@ def main():
                         next_loc.z += delta
                     elif keys[spec_ctrl.K_s]:
                         next_loc.z -= delta
+                    elif keys[spec_ctrl.K_z]:
+                        next_rot.yaw += delta
+                    elif keys[spec_ctrl.K_x]:
+                        next_rot.yaw -= delta
                     elif keys[spec_ctrl.K_a]:
                         weather_presets.append(weather_presets.pop(0))
                         weather = getattr(carla.WeatherParameters, weather_presets[0])
@@ -256,7 +260,7 @@ def main():
                     if capture_data:
                         save_data = any(v != None for v in sim_data.values())
 
-                    msg = 'Up/Down Keys:Forward/Backward, Left/Right Keys:+/-Yaw, W/S:+/-Pitch, SPACE:Stop, ESC:Exit'
+                    msg = 'Up/Down:+/-X, Left/Right:+/-Y, W/S:+/-Z, A/D:Weather, Z/X:+/-YAW, SPACE:Save, ESC:Exit'
                     pgh.blit(pgh.font.render(msg, True, (255, 255, 255)), (8, 10))
                     pgh.blit(pgh.font.render(f'{pgh.clock.get_fps()} FPS (real)', True, (255, 255, 255)), (8, 30))
                     pgh.blit(pgh.font.render(f'{fps} FPS (simulated)', True, (255, 255, 255)), (8, 50))
@@ -277,7 +281,7 @@ def main():
                         for s in sensors:
                             sname = s['name']
                             base_name = f"{sample_counter:04d}_{TOWN_NAME}_{sname}"
-                            sample_transform = f"_{x:03d}_{y:03d}_{z:03d}_{yaw:03d}"
+                            sample_transform = f"_X{x:03d}_Y{y:03d}_Z{z:03d}_YAW{yaw:03d}"
                             weather_detail = f"_{weather_presets[0]}_{int(weather.sun_azimuth_angle):03d}_{int(weather.sun_altitude_angle):03d}"
                             filename = DATA_DIR+"/"+base_name+weather_detail+sample_transform+".png"
                             print(filename)
