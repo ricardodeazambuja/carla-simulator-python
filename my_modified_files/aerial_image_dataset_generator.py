@@ -8,37 +8,62 @@
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
 
-
-
-from cProfile import label
-from email.mime import base
-import math
-import random
-
+from time import sleep
+import hashlib
 import numpy as np
+from PIL import Image
+from PIL.PngImagePlugin import PngInfo
 
 import carla
-
-import pygame
 
 from carlasyncmode import CarlaSyncMode
 from spectatorcontroller import SpectatorController
 from carlapygamehelper import CarlaPygameHelper
+ 
+with open(__file__,"rb") as f:
+    bytes = f.read()
+    readable_hash = hashlib.sha256(bytes).hexdigest()
 
-
-from PIL import Image
-
-
+# Stuff you should edit before running the script...
 DATA_DIR = 'samples'
 TOWN_NAME = 'Town01'
-
+TOTAL_SAMPLES = 10 # -1 for manual sampling
+YAW_LIMITS = (-90, 90)
+Z_LIMITS = (50, 100)
 SEED = 42
+
 
 SIM_FPS = 10
 MAX_DEPTH_DIST = 1000
 
 CAM_HEIGHT = 480
 CAM_WIDTH = 640
+
+# https://carla.readthedocs.io/en/latest/core_map/#maps-and-navigation
+#carla.MapLayer.
+# 'All',
+#  'Buildings',
+#  'Decals',
+#  'Foliage',
+#  'Ground',
+#  'ParkedVehicles',
+#  'Particles',
+#  'Props',
+#  'StreetLights',
+#  'Walls'
+# Calling a map ending with _Opt allows to enable/disable map layers
+
+# Towns with suggested limits (for z<=100)
+MAPS = {
+        'Town01':   {'x':(10,380),    'y':(10,430)}, 
+        'Town02':   {'x':(20,180),   'y':(100,250)}, 
+        'Town03':   {'x':(-120,250), 'y':(-210,190)}, 
+        'Town04':   {'x':(50,380),   'y':(-370,170)}, 
+        'Town05':   {'x':(-290,490), 'y':(-220,280)}, 
+        'Town06':   {'x':(-340,690), 'y':(-170,380)}, 
+        'Town07':   {'x':(-190,90), 'y':(-260,110)}, 
+        'Town10HD': {'x':(-100,120), 'y':(-60,110)}, 
+}
 
 
 # https://carla.readthedocs.io/en/latest/python_api/#carla.WeatherParameters
@@ -60,7 +85,6 @@ weather_presets = ['Default',
 
 rs = np.random.RandomState(SEED)
 def main():
-    actor_list = []
 
     pgh = CarlaPygameHelper(height=CAM_HEIGHT, width=CAM_WIDTH)
 
@@ -68,9 +92,8 @@ def main():
     client = carla.Client('carla-container.local', 2000)
     client.set_timeout(10.0)
     world = client.get_world()
-    available_maps = client.get_available_maps()
-
-    print(f"Available maps: \n{client.get_available_maps()}")
+    # available_maps = client.get_available_maps()
+    # print(f"Available maps: \n{client.get_available_maps()}")
     
 
     load_town = TOWN_NAME
@@ -155,7 +178,7 @@ def main():
                 capture_data = False
                 if key_press:
                     # changes the position by this delta
-                    delta = 1.0
+                    delta = 10.0
                     if keys[spec_ctrl.K_SPACE]:
                         capture_data = True
                     elif keys[spec_ctrl.K_UP]:
@@ -180,17 +203,39 @@ def main():
                         weather.sun_azimuth_angle = rs.randint(0,360)
                         weather.sun_altitude_angle = rs.randint(1,50)
                         world.set_weather(weather)
+                        for i in range(5):
+                            _ = sync_mode.tick(timeout=1/SIM_FPS)
+                            sleep(1/SIM_FPS)
                     elif keys[spec_ctrl.K_d]:
                         weather_presets.insert(0, weather_presets.pop(-1))
                         weather = getattr(carla.WeatherParameters, weather_presets[0])
                         weather.sun_azimuth_angle = rs.randint(0,360)
                         weather.sun_altitude_angle = rs.randint(1,50)
                         world.set_weather(weather)
+                        for i in range(5):
+                            _ = sync_mode.tick(timeout=1/SIM_FPS)
+                            sleep(1/SIM_FPS)
+
+                if TOTAL_SAMPLES>sample_counter:
+                    capture_data = True
+                    weather_presets.append(weather_presets.pop(0))
+                    weather = getattr(carla.WeatherParameters, weather_presets[0])
+                    weather.sun_azimuth_angle = rs.randint(0,360)
+                    weather.sun_altitude_angle = rs.randint(1,50)
+                    world.set_weather(weather)
+                    for i in range(5):
+                        _ = sync_mode.tick(timeout=1/SIM_FPS)
+                        sleep(1/SIM_FPS)
+                    next_rot.yaw = rs.randint(YAW_LIMITS[0],YAW_LIMITS[1])
+
+                    next_loc.x = rs.randint(MAPS[TOWN_NAME]['x'][0],MAPS[TOWN_NAME]['x'][1])
+                    next_loc.x = rs.randint(MAPS[TOWN_NAME]['y'][0],MAPS[TOWN_NAME]['y'][1])
+                    next_loc.z = rs.randint(Z_LIMITS[0],Z_LIMITS[1])
 
                 spec_ctrl.spectator.set_transform(carla.Transform(next_loc, next_rot)) # it will continuously apply the transformation
 
                 # Advance the simulation and wait for the data.
-                # snapshot, image_rgb, image_semantic = sync_mode.tick(timeout=2.0)
+                _ = sync_mode.tick(timeout=1/SIM_FPS) # Make sure the previous transform was executed
                 received_data = sync_mode.tick(timeout=1/SIM_FPS)
                 snapshot = received_data[0]
                 if snapshot == None:
@@ -281,11 +326,20 @@ def main():
                         for s in sensors:
                             sname = s['name']
                             base_name = f"{sample_counter:04d}_{TOWN_NAME}_{sname}"
-                            sample_transform = f"_X{x:03d}_Y{y:03d}_Z{z:03d}_YAW{yaw:03d}"
-                            weather_detail = f"_{weather_presets[0]}_{int(weather.sun_azimuth_angle):03d}_{int(weather.sun_altitude_angle):03d}"
-                            filename = DATA_DIR+"/"+base_name+weather_detail+sample_transform+".png"
+                            filename = DATA_DIR+"/"+base_name+".png"
                             print(filename)
-                            Image.fromarray(vars()[sname]).save(filename)
+                            # It will save details to PNG metadata
+                            metadata = PngInfo()
+                            metadata.add_text("readable_hash", readable_hash)
+                            metadata.add_text("TOTAL_SAMPLES", str(TOTAL_SAMPLES))
+                            metadata.add_text("YAW_LIMITS", str(YAW_LIMITS))
+                            metadata.add_text("Z_LIMITS", str(Z_LIMITS))
+                            metadata.add_text("SEED", str(SEED))
+                            metadata.add_text("XYZ_YAW", f'({x}, {y}, {z}, {yaw})')
+                            metadata.add_text("WEATHER_PRESET", weather_presets[0])
+                            metadata.add_text("sun_azimuth_angle", f'{weather.sun_azimuth_angle}')
+                            metadata.add_text("sun_altitude_angle", f'{weather.sun_altitude_angle}')
+                            Image.fromarray(vars()[sname]).save(filename, pnginfo=metadata)
 
     finally:
 
