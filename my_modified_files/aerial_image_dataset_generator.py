@@ -27,7 +27,7 @@ with open(__file__,"rb") as f:
 # Stuff you should edit before running the script...
 DATA_DIR = 'samples'
 TOWN_NAME = 'Town01'
-TOTAL_SAMPLES = -1 # -1 for manual sampling
+TOTAL_SAMPLES = 100 # -1 for manual sampling
 YAW_LIMITS = (-90, 90)
 Z_LIMITS = (50, 100)
 SEED = 42
@@ -205,18 +205,12 @@ def main():
                         weather.sun_azimuth_angle = rs.randint(0,360)
                         weather.sun_altitude_angle = rs.randint(1,50)
                         world.set_weather(weather)
-                        for i in range(5): # Weather seems to take a while to settle...
-                            _ = sync_mode.tick(timeout=1/SIM_FPS)
-                            sleep(1/SIM_FPS)
                     elif keys[spec_ctrl.K_d]:
                         weather_presets.insert(0, weather_presets.pop(-1))
                         weather = getattr(carla.WeatherParameters, weather_presets[0])
                         weather.sun_azimuth_angle = rs.randint(0,360)
                         weather.sun_altitude_angle = rs.randint(1,50)
                         world.set_weather(weather)
-                        for i in range(5): # Weather seems to take a while to settle...
-                            _ = sync_mode.tick(timeout=1/SIM_FPS)
-                            sleep(1/SIM_FPS)
 
                 if TOTAL_SAMPLES>sample_counter:
                     capture_data = True
@@ -225,16 +219,16 @@ def main():
                     weather.sun_azimuth_angle = rs.randint(0,360)
                     weather.sun_altitude_angle = rs.randint(1,50)
                     world.set_weather(weather)
-                    for i in range(5): # Weather seems to take a while to settle...
-                        _ = sync_mode.tick(timeout=1/SIM_FPS)
-                        sleep(1/SIM_FPS)
                     next_rot.yaw = rs.randint(YAW_LIMITS[0],YAW_LIMITS[1])
-
                     next_loc.x = rs.randint(MAPS[TOWN_NAME]['x'][0],MAPS[TOWN_NAME]['x'][1])
                     next_loc.y = rs.randint(MAPS[TOWN_NAME]['y'][0],MAPS[TOWN_NAME]['y'][1])
                     next_loc.z = rs.randint(Z_LIMITS[0],Z_LIMITS[1])
-
-                spec_ctrl.spectator.set_transform(carla.Transform(next_loc, next_rot)) # it will continuously apply the transformation
+                    spec_ctrl.spectator.set_transform(carla.Transform(next_loc, next_rot)) # it will continuously apply the transformation
+                    for i in range(5): # Weather seems to take a while to settle...
+                        _ = sync_mode.tick(timeout=1/SIM_FPS)
+                        sleep(1/SIM_FPS)
+                else:
+                    spec_ctrl.spectator.set_transform(carla.Transform(next_loc, next_rot)) # it will continuously apply the transformation
 
                 # Advance the simulation and wait for the data.
                 _ = sync_mode.tick(timeout=1/SIM_FPS) # Make sure the previous transform was executed
