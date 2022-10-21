@@ -22,12 +22,12 @@ from carlapygamehelper import CarlaPygameHelper
  
 with open(__file__,"rb") as f:
     bytes = f.read()
-    readable_hash = hashlib.sha256(bytes).hexdigest()
+    script_hash = hashlib.sha256(bytes).hexdigest()
 
 # Stuff you should edit before running the script...
 DATA_DIR = 'samples'
 TOWN_NAME = 'Town01'
-TOTAL_SAMPLES = 10 # -1 for manual sampling
+TOTAL_SAMPLES = -1 # -1 for manual sampling
 YAW_LIMITS = (-90, 90)
 Z_LIMITS = (50, 100)
 SEED = 42
@@ -123,27 +123,29 @@ def main():
         sensors.append({'name':'camera_instance_segmentation','blueprint':camera_instance_segmentation_bp,
                         'transform': carla.Transform(carla.Location(), carla.Rotation(pitch=-90.0))})
 
-        # https://carla.readthedocs.io/en/latest/ref_sensors/#rgb-camera
-        camera_stereo_left_bp = world.get_blueprint_library().find('sensor.camera.rgb')
-        camera_stereo_left_bp.set_attribute('fov', '73') # OAK-D Lite HFOV
-        camera_stereo_left_bp.set_attribute('fstop', '2.2') # OAK-D Lite FSTOP
-        camera_stereo_left_bp.set_attribute('image_size_x', str(CAM_WIDTH))
-        camera_stereo_left_bp.set_attribute('image_size_y', str(CAM_HEIGHT))
-        sensors.append({'name':'camera_stereo_left',
-                        'blueprint':camera_stereo_left_bp,
-                        'transform': carla.Transform(carla.Location(y=-(75/1000)/2),
-                                     carla.Rotation(pitch=-90.0))}) # OAK-D Lite Baseline (75mm))
+        # # https://carla.readthedocs.io/en/latest/ref_sensors/#rgb-camera
+        # camera_stereo_left_bp = world.get_blueprint_library().find('sensor.camera.rgb')
+        # camera_stereo_left_bp.set_attribute('fov', '73') # OAK-D Lite HFOV
+        # camera_stereo_left_bp.set_attribute('fstop', '2.2') # OAK-D Lite FSTOP
+        # camera_stereo_left_bp.set_attribute('image_size_x', str(CAM_WIDTH))
+        # camera_stereo_left_bp.set_attribute('image_size_y', str(CAM_HEIGHT))
+        # sensors.append({'name':'camera_stereo_left',
+        #                 'blueprint':camera_stereo_left_bp,
+        #                 'transform': carla.Transform(carla.Location(y=-(75/1000)/2),
+        #                              carla.Rotation(pitch=-90.0))
+        #                              }) # OAK-D Lite Baseline (75mm))
 
-        # https://carla.readthedocs.io/en/latest/ref_sensors/#rgb-camera
-        camera_stereo_right_bp = world.get_blueprint_library().find('sensor.camera.rgb')
-        camera_stereo_right_bp.set_attribute('fov', '73') # OAK-D Lite HFOV
-        camera_stereo_right_bp.set_attribute('fstop', '2.2') # OAK-D Lite FSTOP
-        camera_stereo_right_bp.set_attribute('image_size_x', str(CAM_WIDTH))
-        camera_stereo_right_bp.set_attribute('image_size_y', str(CAM_HEIGHT))
-        sensors.append({'name':'camera_stereo_right',
-                        'blueprint':camera_stereo_right_bp,
-                        'transform': carla.Transform(carla.Location(y=+(75/1000)/2),
-                                     carla.Rotation(pitch=-90.0))}) # OAK-D Lite Baseline (75mm))
+        # # https://carla.readthedocs.io/en/latest/ref_sensors/#rgb-camera
+        # camera_stereo_right_bp = world.get_blueprint_library().find('sensor.camera.rgb')
+        # camera_stereo_right_bp.set_attribute('fov', '73') # OAK-D Lite HFOV
+        # camera_stereo_right_bp.set_attribute('fstop', '2.2') # OAK-D Lite FSTOP
+        # camera_stereo_right_bp.set_attribute('image_size_x', str(CAM_WIDTH))
+        # camera_stereo_right_bp.set_attribute('image_size_y', str(CAM_HEIGHT))
+        # sensors.append({'name':'camera_stereo_right',
+        #                 'blueprint':camera_stereo_right_bp,
+        #                 'transform': carla.Transform(carla.Location(y=+(75/1000)/2),
+        #                              carla.Rotation(pitch=-90.0))
+        #                              }) # OAK-D Lite Baseline (75mm))
 
         # https://carla.readthedocs.io/en/latest/ref_sensors/#depth-camera
         camera_depth_bp = world.get_blueprint_library().find('sensor.camera.depth')
@@ -203,7 +205,7 @@ def main():
                         weather.sun_azimuth_angle = rs.randint(0,360)
                         weather.sun_altitude_angle = rs.randint(1,50)
                         world.set_weather(weather)
-                        for i in range(5):
+                        for i in range(5): # Weather seems to take a while to settle...
                             _ = sync_mode.tick(timeout=1/SIM_FPS)
                             sleep(1/SIM_FPS)
                     elif keys[spec_ctrl.K_d]:
@@ -212,24 +214,24 @@ def main():
                         weather.sun_azimuth_angle = rs.randint(0,360)
                         weather.sun_altitude_angle = rs.randint(1,50)
                         world.set_weather(weather)
-                        for i in range(5):
+                        for i in range(5): # Weather seems to take a while to settle...
                             _ = sync_mode.tick(timeout=1/SIM_FPS)
                             sleep(1/SIM_FPS)
 
                 if TOTAL_SAMPLES>sample_counter:
                     capture_data = True
-                    weather_presets.append(weather_presets.pop(0))
+                    rs.shuffle(weather_presets)
                     weather = getattr(carla.WeatherParameters, weather_presets[0])
                     weather.sun_azimuth_angle = rs.randint(0,360)
                     weather.sun_altitude_angle = rs.randint(1,50)
                     world.set_weather(weather)
-                    for i in range(5):
+                    for i in range(5): # Weather seems to take a while to settle...
                         _ = sync_mode.tick(timeout=1/SIM_FPS)
                         sleep(1/SIM_FPS)
                     next_rot.yaw = rs.randint(YAW_LIMITS[0],YAW_LIMITS[1])
 
                     next_loc.x = rs.randint(MAPS[TOWN_NAME]['x'][0],MAPS[TOWN_NAME]['x'][1])
-                    next_loc.x = rs.randint(MAPS[TOWN_NAME]['y'][0],MAPS[TOWN_NAME]['y'][1])
+                    next_loc.y = rs.randint(MAPS[TOWN_NAME]['y'][0],MAPS[TOWN_NAME]['y'][1])
                     next_loc.z = rs.randint(Z_LIMITS[0],Z_LIMITS[1])
 
                 spec_ctrl.spectator.set_transform(carla.Transform(next_loc, next_rot)) # it will continuously apply the transformation
@@ -278,21 +280,21 @@ def main():
                     camera_rgb = bgra_image[:, :, ::-1]
                     # Image.fromarray(camera_rgb).save("camera_rgb.png")
 
-                if sim_data['camera_stereo_right'] and capture_data:
-                    carla_image = sim_data['camera_stereo_right']
-                    bgra_image = np.ndarray(
-                        shape=(carla_image.height, carla_image.width, 4),
-                        dtype=np.uint8, buffer=carla_image.raw_data)[..., :3]
-                    camera_stereo_right = bgra_image[:, :, ::-1]
-                    # Image.fromarray(camera_stereo_right).save("camera_stereo_right.png")
+                # if sim_data['camera_stereo_right'] and capture_data:
+                #     carla_image = sim_data['camera_stereo_right']
+                #     bgra_image = np.ndarray(
+                #         shape=(carla_image.height, carla_image.width, 4),
+                #         dtype=np.uint8, buffer=carla_image.raw_data)[..., :3]
+                #     camera_stereo_right = bgra_image[:, :, ::-1]
+                #     # Image.fromarray(camera_stereo_right).save("camera_stereo_right.png")
 
-                if sim_data['camera_stereo_left'] and capture_data:
-                    carla_image = sim_data['camera_stereo_left']
-                    bgra_image = np.ndarray(
-                        shape=(carla_image.height, carla_image.width, 4),
-                        dtype=np.uint8, buffer=carla_image.raw_data)[..., :3]
-                    camera_stereo_left = bgra_image[:, :, ::-1]
-                    # Image.fromarray(camera_stereo_left).save("camera_stereo_left.png")
+                # if sim_data['camera_stereo_left'] and capture_data:
+                #     carla_image = sim_data['camera_stereo_left']
+                #     bgra_image = np.ndarray(
+                #         shape=(carla_image.height, carla_image.width, 4),
+                #         dtype=np.uint8, buffer=carla_image.raw_data)[..., :3]
+                #     camera_stereo_left = bgra_image[:, :, ::-1]
+                #     # Image.fromarray(camera_stereo_left).save("camera_stereo_left.png")
 
                 # Draw the display.
                 if sim_data['camera_rgb']:
@@ -330,12 +332,12 @@ def main():
                             print(filename)
                             # It will save details to PNG metadata
                             metadata = PngInfo()
-                            metadata.add_text("readable_hash", readable_hash)
+                            metadata.add_text("script_hash", script_hash)
                             metadata.add_text("TOTAL_SAMPLES", str(TOTAL_SAMPLES))
                             metadata.add_text("YAW_LIMITS", str(YAW_LIMITS))
                             metadata.add_text("Z_LIMITS", str(Z_LIMITS))
                             metadata.add_text("SEED", str(SEED))
-                            metadata.add_text("XYZ_YAW", f'({x}, {y}, {z}, {yaw})')
+                            metadata.add_text("XYZYAW", f'({x}, {y}, {z}, {yaw})')
                             metadata.add_text("WEATHER_PRESET", weather_presets[0])
                             metadata.add_text("sun_azimuth_angle", f'{weather.sun_azimuth_angle}')
                             metadata.add_text("sun_altitude_angle", f'{weather.sun_altitude_angle}')
