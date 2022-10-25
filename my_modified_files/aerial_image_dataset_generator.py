@@ -38,6 +38,7 @@ MAX_DEPTH_DIST = 1000
 
 CAM_HEIGHT = 480
 CAM_WIDTH = 640
+FOV = 69
 
 # https://carla.readthedocs.io/en/latest/core_map/#maps-and-navigation
 #carla.MapLayer.
@@ -108,7 +109,7 @@ def main():
 
         # https://carla.readthedocs.io/en/latest/ref_sensors/#rgb-camera
         camera_rgb_bp = world.get_blueprint_library().find('sensor.camera.rgb')
-        camera_rgb_bp.set_attribute('fov', '69') # OAK-D Lite HFOV
+        camera_rgb_bp.set_attribute('fov', str(FOV)) # OAK-D Lite HFOV
         camera_rgb_bp.set_attribute('fstop', '2.2') # OAK-D Lite FSTOP
         camera_rgb_bp.set_attribute('image_size_x', str(CAM_WIDTH))
         camera_rgb_bp.set_attribute('image_size_y', str(CAM_HEIGHT))
@@ -117,39 +118,15 @@ def main():
 
         # https://carla.readthedocs.io/en/latest/ref_sensors/#sensor.camera.instance_segmentation
         camera_instance_segmentation_bp = world.get_blueprint_library().find('sensor.camera.instance_segmentation')
-        camera_instance_segmentation_bp.set_attribute('fov', '69') # OAK-D Lite HFOV
+        camera_instance_segmentation_bp.set_attribute('fov', str(FOV)) # OAK-D Lite HFOV
         camera_instance_segmentation_bp.set_attribute('image_size_x', str(CAM_WIDTH))
         camera_instance_segmentation_bp.set_attribute('image_size_y', str(CAM_HEIGHT))
         sensors.append({'name':'camera_instance_segmentation','blueprint':camera_instance_segmentation_bp,
                         'transform': carla.Transform(carla.Location(), carla.Rotation(pitch=-90.0))})
 
-        # # https://carla.readthedocs.io/en/latest/ref_sensors/#rgb-camera
-        # camera_stereo_left_bp = world.get_blueprint_library().find('sensor.camera.rgb')
-        # camera_stereo_left_bp.set_attribute('fov', '73') # OAK-D Lite HFOV
-        # camera_stereo_left_bp.set_attribute('fstop', '2.2') # OAK-D Lite FSTOP
-        # camera_stereo_left_bp.set_attribute('image_size_x', str(CAM_WIDTH))
-        # camera_stereo_left_bp.set_attribute('image_size_y', str(CAM_HEIGHT))
-        # sensors.append({'name':'camera_stereo_left',
-        #                 'blueprint':camera_stereo_left_bp,
-        #                 'transform': carla.Transform(carla.Location(y=-(75/1000)/2),
-        #                              carla.Rotation(pitch=-90.0))
-        #                              }) # OAK-D Lite Baseline (75mm))
-
-        # # https://carla.readthedocs.io/en/latest/ref_sensors/#rgb-camera
-        # camera_stereo_right_bp = world.get_blueprint_library().find('sensor.camera.rgb')
-        # camera_stereo_right_bp.set_attribute('fov', '73') # OAK-D Lite HFOV
-        # camera_stereo_right_bp.set_attribute('fstop', '2.2') # OAK-D Lite FSTOP
-        # camera_stereo_right_bp.set_attribute('image_size_x', str(CAM_WIDTH))
-        # camera_stereo_right_bp.set_attribute('image_size_y', str(CAM_HEIGHT))
-        # sensors.append({'name':'camera_stereo_right',
-        #                 'blueprint':camera_stereo_right_bp,
-        #                 'transform': carla.Transform(carla.Location(y=+(75/1000)/2),
-        #                              carla.Rotation(pitch=-90.0))
-        #                              }) # OAK-D Lite Baseline (75mm))
-
         # https://carla.readthedocs.io/en/latest/ref_sensors/#depth-camera
         camera_depth_bp = world.get_blueprint_library().find('sensor.camera.depth')
-        camera_depth_bp.set_attribute('fov', '73') # FOV matches the stereo pair
+        camera_depth_bp.set_attribute('fov', str(FOV)) # FOV matches the stereo pair
         camera_depth_bp.set_attribute('image_size_x', str(CAM_WIDTH))
         camera_depth_bp.set_attribute('image_size_y', str(CAM_HEIGHT))
         sensors.append({'name':'camera_depth','blueprint':camera_depth_bp,
@@ -224,7 +201,7 @@ def main():
                     next_loc.y = rs.randint(MAPS[TOWN_NAME]['y'][0],MAPS[TOWN_NAME]['y'][1])
                     next_loc.z = rs.randint(Z_LIMITS[0],Z_LIMITS[1])
                     spec_ctrl.spectator.set_transform(carla.Transform(next_loc, next_rot)) # it will continuously apply the transformation
-                    for i in range(5): # Weather seems to take a while to settle...
+                    for i in range(10): # Weather seems to take a while to settle...
                         _ = sync_mode.tick(timeout=1/SIM_FPS)
                         sleep(1/SIM_FPS)
                 else:
@@ -331,6 +308,7 @@ def main():
                             metadata.add_text("YAW_LIMITS", str(YAW_LIMITS))
                             metadata.add_text("Z_LIMITS", str(Z_LIMITS))
                             metadata.add_text("SEED", str(SEED))
+                            metadata.add_text("FOV", str(FOV))
                             metadata.add_text("XYZYAW", f'({x}, {y}, {z}, {yaw})')
                             metadata.add_text("WEATHER_PRESET", weather_presets[0])
                             metadata.add_text("sun_azimuth_angle", f'{weather.sun_azimuth_angle}')
