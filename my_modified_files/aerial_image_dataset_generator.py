@@ -27,11 +27,12 @@ with open(__file__,"rb") as f:
 # Stuff you should edit before running the script...
 DATA_DIR = 'samples'
 TOWN_NAME = 'Town01'
-TOTAL_SAMPLES = 100 # -1 for manual sampling
+TOTAL_WEATHER = 14 # 1 to inf... gives the option of saving more than one weather pattern per sample
+TOTAL_SAMPLES = 1000 # -1 for manual sampling
+TICK4WEATHER = 2 # number of times we call the simulation tick to make sure the weather settled...
 YAW_LIMITS = (-90, 90)
 Z_LIMITS = (50, 100)
 SEED = 42
-
 
 SIM_FPS = 10
 MAX_DEPTH_DIST = 1000
@@ -68,8 +69,7 @@ MAPS = {
 
 
 # https://carla.readthedocs.io/en/latest/python_api/#carla.WeatherParameters
-weather_presets = ['Default',
-                   'ClearNoon',
+weather_presets = ['ClearNoon',
                    'CloudyNoon',
                    'WetNoon',
                    'WetCloudyNoon',
@@ -140,6 +140,7 @@ def main():
         spec_ctrl.spectator.set_transform(carla.Transform(carla.Location(z=100), carla.Rotation()))
 
         sample_counter = 0
+        weather_counter = 0
         weather = world.get_weather()
         with CarlaSyncMode(world, spec_ctrl.sensors.values(), fps=SIM_FPS) as sync_mode:
             while True:
@@ -160,6 +161,7 @@ def main():
                     delta = 10.0
                     if keys[spec_ctrl.K_SPACE]:
                         capture_data = True
+                        sample_counter += 1
                     elif keys[spec_ctrl.K_UP]:
                         next_loc.x += delta
                     elif keys[spec_ctrl.K_DOWN]:
@@ -189,19 +191,27 @@ def main():
                         weather.sun_altitude_angle = rs.randint(1,50)
                         world.set_weather(weather)
 
-                if TOTAL_SAMPLES>sample_counter:
+                if TOTAL_SAMPLES > sample_counter:
                     capture_data = True
-                    rs.shuffle(weather_presets)
-                    weather = getattr(carla.WeatherParameters, weather_presets[0])
-                    weather.sun_azimuth_angle = rs.randint(0,360)
-                    weather.sun_altitude_angle = rs.randint(1,50)
-                    world.set_weather(weather)
-                    next_rot.yaw = rs.randint(YAW_LIMITS[0],YAW_LIMITS[1])
-                    next_loc.x = rs.randint(MAPS[TOWN_NAME]['x'][0],MAPS[TOWN_NAME]['x'][1])
-                    next_loc.y = rs.randint(MAPS[TOWN_NAME]['y'][0],MAPS[TOWN_NAME]['y'][1])
-                    next_loc.z = rs.randint(Z_LIMITS[0],Z_LIMITS[1])
-                    spec_ctrl.spectator.set_transform(carla.Transform(next_loc, next_rot)) # it will continuously apply the transformation
-                    for i in range(10): # Weather seems to take a while to settle...
+                    if weather_counter == 0:
+                        sample_counter += 1
+                        next_rot.yaw = rs.randint(YAW_LIMITS[0],YAW_LIMITS[1])
+                        next_loc.x = rs.randint(MAPS[TOWN_NAME]['x'][0],MAPS[TOWN_NAME]['x'][1])
+                        next_loc.y = rs.randint(MAPS[TOWN_NAME]['y'][0],MAPS[TOWN_NAME]['y'][1])
+                        next_loc.z = rs.randint(Z_LIMITS[0],Z_LIMITS[1])
+                        spec_ctrl.spectator.set_transform(carla.Transform(next_loc, next_rot)) # it will continuously apply the transformation
+                    if weather_counter < TOTAL_WEATHER:
+                        weather_counter += 1
+                        weather_presets.append(weather_presets.pop(0))
+                        weather = getattr(carla.WeatherParameters, weather_presets[0])
+                        weather.sun_azimuth_angle = rs.randint(0,360)
+                        weather.sun_altitude_angle = rs.randint(1,50)
+                        world.set_weather(weather)
+                    else:
+                        weather_counter = 0
+                        continue
+
+                    for i in range(TICK4WEATHER): # Weather seems to take a while to settle...
                         _ = sync_mode.tick(timeout=1/SIM_FPS)
                         sleep(1/SIM_FPS)
                 else:
@@ -286,11 +296,10 @@ def main():
                     pgh.blit(pgh.font.render(f'{spec_ctrl.spectator.get_transform().rotation}', True, (255, 255, 255)), (8, 90))
                     pgh.blit(pgh.font.render(f'Current sample: {sample_counter:04d}', True, (255, 255, 255)), (8, 110))
                     if save_data:
-                        pgh.blit(pgh.font.render(f'***** Saving sample: {sample_counter+1:04d} *****', True, (255, 0, 0)), (8, 130))
+                        pgh.blit(pgh.font.render(f'***** Saving sample: {sample_counter:04d} *****', True, (255, 0, 0)), (8, 130))
                     pgh.flip()
 
                     if save_data:
-                        sample_counter += 1
                         print(f'Savind sample {sample_counter:04d}')
                         x = int(spec_ctrl.spectator.get_transform().location.x)
                         y = int(spec_ctrl.spectator.get_transform().location.y)
@@ -298,13 +307,17 @@ def main():
                         yaw = int(spec_ctrl.spectator.get_transform().rotation.yaw)
                         for s in sensors:
                             sname = s['name']
-                            base_name = f"{sample_counter:04d}_{TOWN_NAME}_{sname}"
+                            if weather_counter > 1 and sname != 'camera_rgb':
+                                continue
+
+                            base_name = f"{sample_counter:04d}_{weather_counter:04d}_{TOWN_NAME}_{sname}"
                             filename = DATA_DIR+"/"+base_name+".png"
                             print(filename)
                             # It will save details to PNG metadata
                             metadata = PngInfo()
                             metadata.add_text("script_hash", script_hash)
                             metadata.add_text("TOTAL_SAMPLES", str(TOTAL_SAMPLES))
+                            metadata.add_text("TOTAL_WEATHER", str(TOTAL_WEATHER))
                             metadata.add_text("YAW_LIMITS", str(YAW_LIMITS))
                             metadata.add_text("Z_LIMITS", str(Z_LIMITS))
                             metadata.add_text("SEED", str(SEED))
