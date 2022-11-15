@@ -28,7 +28,7 @@ with open(__file__,"rb") as f:
 DATA_DIR = 'samples'
 TOWN_NAME = 'Town01'
 TOTAL_WEATHER = 14 # 1 to inf... gives the option of saving more than one weather pattern per sample
-TOTAL_SAMPLES = 1000 # -1 for manual sampling
+TOTAL_SAMPLES = -1 # -1 for manual sampling
 TICK4WEATHER = 2 # number of times we call the simulation tick to make sure the weather settled...
 YAW_LIMITS = (-90, 90)
 Z_LIMITS = (50, 100)
@@ -161,7 +161,6 @@ def main():
                     delta = 10.0
                     if keys[spec_ctrl.K_SPACE]:
                         capture_data = True
-                        sample_counter += 1
                     elif keys[spec_ctrl.K_UP]:
                         next_loc.x += delta
                     elif keys[spec_ctrl.K_DOWN]:
@@ -191,10 +190,8 @@ def main():
                         weather.sun_altitude_angle = rs.randint(1,50)
                         world.set_weather(weather)
 
-                if TOTAL_SAMPLES > sample_counter:
-                    capture_data = True
+                if sample_counter < TOTAL_SAMPLES:
                     if weather_counter == 0:
-                        sample_counter += 1
                         next_rot.yaw = rs.randint(YAW_LIMITS[0],YAW_LIMITS[1])
                         next_loc.x = rs.randint(MAPS[TOWN_NAME]['x'][0],MAPS[TOWN_NAME]['x'][1])
                         next_loc.y = rs.randint(MAPS[TOWN_NAME]['y'][0],MAPS[TOWN_NAME]['y'][1])
@@ -207,6 +204,7 @@ def main():
                         weather.sun_azimuth_angle = rs.randint(0,360)
                         weather.sun_altitude_angle = rs.randint(1,50)
                         world.set_weather(weather)
+                        capture_data = True
                     else:
                         weather_counter = 0
                         continue
@@ -294,13 +292,13 @@ def main():
                     pgh.blit(pgh.font.render(f'{fps} FPS (simulated)', True, (255, 255, 255)), (8, 50))
                     pgh.blit(pgh.font.render(f'{spec_ctrl.spectator.get_transform().location}', True, (255, 255, 255)), (8, 70))
                     pgh.blit(pgh.font.render(f'{spec_ctrl.spectator.get_transform().rotation}', True, (255, 255, 255)), (8, 90))
-                    pgh.blit(pgh.font.render(f'Current sample: {sample_counter:04d}', True, (255, 255, 255)), (8, 110))
+                    pgh.blit(pgh.font.render(f'Current sample: {sample_counter+1:04d}', True, (255, 255, 255)), (8, 110))
                     if save_data:
-                        pgh.blit(pgh.font.render(f'***** Saving sample: {sample_counter:04d} *****', True, (255, 0, 0)), (8, 130))
+                        pgh.blit(pgh.font.render(f'***** Saving sample: {sample_counter+1:04d} *****', True, (255, 0, 0)), (8, 130))
                     pgh.flip()
 
                     if save_data:
-                        print(f'Savind sample {sample_counter:04d}')
+                        print(f'Savind sample {sample_counter+1:04d}')
                         x = int(spec_ctrl.spectator.get_transform().location.x)
                         y = int(spec_ctrl.spectator.get_transform().location.y)
                         z = int(spec_ctrl.spectator.get_transform().location.z)
@@ -310,7 +308,7 @@ def main():
                             if weather_counter > 1 and sname != 'camera_rgb':
                                 continue
 
-                            base_name = f"{sample_counter:04d}_{weather_counter:04d}_{TOWN_NAME}_{sname}"
+                            base_name = f"{sample_counter+1:04d}_{weather_counter:04d}_{TOWN_NAME}_{sname}"
                             filename = DATA_DIR+"/"+base_name+".png"
                             print(filename)
                             # It will save details to PNG metadata
@@ -328,6 +326,11 @@ def main():
                             metadata.add_text("sun_altitude_angle", f'{weather.sun_altitude_angle}')
                             Image.fromarray(vars()[sname]).save(filename, pnginfo=metadata)
 
+                        if sample_counter < TOTAL_SAMPLES and TOTAL_WEATHER > 1:
+                            if weather_counter == TOTAL_WEATHER:
+                                sample_counter += 1
+                        else:
+                            sample_counter += 1
     finally:
 
         print('destroying actors.')
