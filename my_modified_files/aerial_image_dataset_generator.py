@@ -206,9 +206,7 @@ def main():
                             weather_counter += 1
                             if weather_counter == 1:
                                 # force all the first samples to use the same weather pattern
-                                weather = getattr(carla.WeatherParameters, 'ClearNoon')
-                                weather.sun_azimuth_angle = 180
-                                weather.sun_altitude_angle = 90
+                                weather = getattr(carla.WeatherParameters, 'CloudyNoon')
                                 world.set_weather(weather)
                             else:
                                 weather_presets.append(weather_presets.pop(0))
