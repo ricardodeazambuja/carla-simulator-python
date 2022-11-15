@@ -27,8 +27,8 @@ with open(__file__,"rb") as f:
 # Stuff you should edit before running the script...
 DATA_DIR = 'samples'
 TOWN_NAME = 'Town01'
-TOTAL_WEATHER = 14 # 1 to inf... gives the option of saving more than one weather pattern per sample
-TOTAL_SAMPLES = -1 # -1 for manual sampling
+TOTAL_WEATHER = 15 # 1 to inf... gives the option of saving more than one weather pattern per sample
+TOTAL_SAMPLES = 1000 # -1 for manual sampling
 TICK4WEATHER = 2 # number of times we call the simulation tick to make sure the weather settled...
 YAW_LIMITS = (-90, 90)
 Z_LIMITS = (50, 100)
@@ -139,6 +139,8 @@ def main():
         # Set initial pose
         spec_ctrl.spectator.set_transform(carla.Transform(carla.Location(z=100), carla.Rotation()))
 
+        prev_total_counter = -1
+        total_counter = 0
         sample_counter = 0
         weather_counter = 0
         weather = world.get_weather()
@@ -197,14 +199,23 @@ def main():
                         next_loc.y = rs.randint(MAPS[TOWN_NAME]['y'][0],MAPS[TOWN_NAME]['y'][1])
                         next_loc.z = rs.randint(Z_LIMITS[0],Z_LIMITS[1])
                         spec_ctrl.spectator.set_transform(carla.Transform(next_loc, next_rot)) # it will continuously apply the transformation
-                    if weather_counter < TOTAL_WEATHER:
-                        weather_counter += 1
-                        weather_presets.append(weather_presets.pop(0))
-                        weather = getattr(carla.WeatherParameters, weather_presets[0])
-                        weather.sun_azimuth_angle = rs.randint(0,360)
-                        weather.sun_altitude_angle = rs.randint(1,50)
-                        world.set_weather(weather)
+                    if (weather_counter < TOTAL_WEATHER):
                         capture_data = True
+                        if (total_counter > prev_total_counter):
+                            prev_total_counter = total_counter
+                            weather_counter += 1
+                            if weather_counter == 1:
+                                # force all the first samples to use the same weather pattern
+                                weather = getattr(carla.WeatherParameters, 'ClearNoon')
+                                weather.sun_azimuth_angle = 180
+                                weather.sun_altitude_angle = 90
+                                world.set_weather(weather)
+                            else:
+                                weather_presets.append(weather_presets.pop(0))
+                                weather = getattr(carla.WeatherParameters, weather_presets[0])
+                                weather.sun_azimuth_angle = rs.randint(0,360)
+                                weather.sun_altitude_angle = rs.randint(1,50)
+                                world.set_weather(weather)
                     else:
                         weather_counter = 0
                         continue
@@ -298,6 +309,7 @@ def main():
                     pgh.flip()
 
                     if save_data:
+                        total_counter += 1
                         print(f'Savind sample {sample_counter+1:04d}')
                         x = int(spec_ctrl.spectator.get_transform().location.x)
                         y = int(spec_ctrl.spectator.get_transform().location.y)
