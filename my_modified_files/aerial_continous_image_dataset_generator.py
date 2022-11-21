@@ -8,7 +8,7 @@
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
 
-from math import sin, cos, pi, atan2
+from math import sin, cos, pi, atan2, radians, degrees
 from time import sleep
 import hashlib
 import numpy as np
@@ -27,7 +27,7 @@ with open(__file__,"rb") as f:
 
 # Stuff you should edit before running the script...
 DATA_DIR = 'samples'
-TOWN_NAME = 'Town07'
+TOWN_NAME = 'Town02'
 TOTAL_WEATHER = 1 #15 # 1 to inf... gives the option of saving more than one weather pattern per sample
 TOTAL_SAMPLES = 1000 # -1 for manual sampling
 TICK4WEATHER = 2 # number of times we call the simulation tick to make sure the weather settled...
@@ -109,7 +109,7 @@ def main():
         world = client.load_world(load_town) #it takes a while to load, so the client timeout needs to afford that.
 
     try:
-        yaw_ctrl = 0 #rs.randint(YAW_LIMITS[0],YAW_LIMITS[1])+0.5
+        yaw_ctrl = 45 #rs.randint(YAW_LIMITS[0],YAW_LIMITS[1])+0.5
         pitch_ctrl = 45 #rs.randint(PITCH_LIMITS[0],PITCH_LIMITS[1])
 
         # https://carla.readthedocs.io/en/latest/bp_library/#sensor
@@ -143,13 +143,11 @@ def main():
 
         spec_ctrl = SpectatorController(world, sensors)
         # Don't forget: actors need to be destroyed at the end ;)
-     
-        # Set initial pose
-        spec_ctrl.spectator.set_transform(carla.Transform(carla.Location(z=100), carla.Rotation()))
 
-        yaw_ctrl=pi*yaw_ctrl/180
-        vx_ctrl = VELOCITY_XY*sin(yaw_ctrl)
-        vy_ctrl = VELOCITY_XY*cos(yaw_ctrl)
+        yaw_ctrl = radians(yaw_ctrl)
+        pitch_ctrl = radians(pitch_ctrl)
+        vx_ctrl = VELOCITY_XY*cos(yaw_ctrl)
+        vy_ctrl = VELOCITY_XY*sin(yaw_ctrl)
         vz_ctrl = VELOCITY_Z*sin(pitch_ctrl)
         map_x = MAPS[TOWN_NAME]['x']
         map_y = MAPS[TOWN_NAME]['y']
@@ -158,6 +156,15 @@ def main():
                       map_y[0]+(map_y[1]-map_y[0])/2,
                       map_z[0]+(map_z[1]-map_z[0])/2)
         x_ctrl,y_ctrl,z_ctrl = map_centre
+
+
+        # Set initial pose
+        spec_ctrl.spectator.set_transform(carla.Transform(carla.Location(x=x_ctrl, y=y_ctrl, z=z_ctrl), 
+                                          carla.Rotation(yaw=degrees(yaw_ctrl))))
+
+        spec_ctrl.transform['loc'] = [0,0,0]
+        spec_ctrl.transform['rot'] = [0,0,0]
+
         prev_total_counter = -1
         total_counter = 0
         sample_counter = 0
@@ -173,8 +180,8 @@ def main():
                 keys = spec_ctrl.pygame.key.get_pressed()
                 key_press = any(keys)
                 
-                next_loc = spec_ctrl.spectator.get_transform().location
-                next_rot = spec_ctrl.spectator.get_transform().rotation
+                next_loc = curr_loc = spec_ctrl.spectator.get_transform().location
+                next_rot = curr_rot = spec_ctrl.spectator.get_transform().rotation
 
                 capture_data = False
                 if key_press:
@@ -183,21 +190,21 @@ def main():
                     if keys[spec_ctrl.K_SPACE]:
                         capture_data = True
                     elif keys[spec_ctrl.K_UP]:
-                        next_loc.x += delta
+                        curr_loc.x += delta
                     elif keys[spec_ctrl.K_DOWN]:
-                        next_loc.x -= delta
+                        curr_loc.x -= delta
                     elif keys[spec_ctrl.K_LEFT]:
-                        next_loc.y -= delta
+                        curr_loc.y -= delta
                     elif keys[spec_ctrl.K_RIGHT]:
-                        next_loc.y += delta
+                        curr_loc.y += delta
                     elif keys[spec_ctrl.K_w]:
-                        next_loc.z += delta
+                        curr_loc.z += delta
                     elif keys[spec_ctrl.K_s]:
-                        next_loc.z -= delta
+                        curr_loc.z -= delta
                     elif keys[spec_ctrl.K_z]:
-                        next_rot.yaw += delta
+                        curr_rot.yaw += delta
                     elif keys[spec_ctrl.K_x]:
-                        next_rot.yaw -= delta
+                        curr_rot.yaw -= delta
                     elif keys[spec_ctrl.K_a]:
                         weather_presets.append(weather_presets.pop(0))
                         weather = getattr(carla.WeatherParameters, weather_presets[0])
@@ -210,46 +217,57 @@ def main():
                         weather.sun_azimuth_angle = rs.randint(0,360)
                         weather.sun_altitude_angle = rs.randint(1,50)
                         world.set_weather(weather)
+                    
+                    next_loc = curr_loc
+                    next_rot = curr_rot
 
                 if sample_counter < TOTAL_SAMPLES:
                     if weather_counter == 0:
                         # calculate new x and y
-                        x_ctrl += vx_ctrl*MOV_TIME_STEP
-                        y_ctrl += vy_ctrl*MOV_TIME_STEP
-                        z_ctrl += vz_ctrl*MOV_TIME_STEP
+                        x_ctrl = vx_ctrl*MOV_TIME_STEP
+                        y_ctrl = vy_ctrl*MOV_TIME_STEP
+                        z_ctrl = vz_ctrl*MOV_TIME_STEP
+
+                        yaw_ctrl = radians(next_rot.yaw)
+                        next_x = next_loc.x + x_ctrl
+                        next_y = next_loc.y + y_ctrl
+                        next_z = next_loc.z + z_ctrl
+
                         # check for a collision
                         # update x, y and yaw if collision
-                        if x_ctrl <= map_x[0]:
-                            x_ctrl = map_x[0]
-                            yaw_ctrl = atan2(-sin(yaw_ctrl),cos(yaw_ctrl))+rs.rand()*pi/4
-                        elif x_ctrl >= map_x[1]:
-                            x_ctrl = map_x[1]
-                            yaw_ctrl = atan2(-sin(yaw_ctrl),cos(yaw_ctrl))+rs.rand()*pi/4
+                        if next_x <= map_x[0]:
+                            next_x = map_x[0]
+                            yaw_ctrl = atan2(sin(yaw_ctrl),-cos(yaw_ctrl))+rs.rand()*pi/8
+                        elif next_x >= map_x[1]:
+                            next_x = map_x[1]
+                            yaw_ctrl = atan2(sin(yaw_ctrl),-cos(yaw_ctrl))+rs.rand()*pi/8
 
-                        if y_ctrl <= map_y[0]:
-                            y_ctrl = map_y[0]
-                            yaw_ctrl = atan2(sin(yaw_ctrl),-cos(yaw_ctrl))+rs.rand()*pi/4
-                        elif y_ctrl >= map_y[1]:
-                            y_ctrl = map_y[1]
-                            yaw_ctrl = atan2(sin(yaw_ctrl),-cos(yaw_ctrl))+rs.rand()*pi/4
+                        if next_y <= map_y[0]:
+                            next_y = map_y[0]
+                            yaw_ctrl = atan2(-sin(yaw_ctrl),cos(yaw_ctrl))+rs.rand()*pi/8
+                        elif next_y >= map_y[1]:
+                            next_y = map_y[1]
+                            yaw_ctrl = atan2(-sin(yaw_ctrl),cos(yaw_ctrl))+rs.rand()*pi/8
                         
-                        if z_ctrl <= map_z[0]:
-                            z_ctrl = map_z[0]
-                            pitch_ctrl = atan2(-sin(pitch_ctrl),cos(pitch_ctrl))+rs.rand()*pi/8
-                        elif z_ctrl >= map_z[1]:
-                            z_ctrl = map_z[1]
-                            pitch_ctrl = atan2(-sin(pitch_ctrl),cos(pitch_ctrl))+rs.rand()*pi/8
-                            
+                        if next_z <= map_z[0]:
+                            next_z = map_z[0]
+                            pitch_ctrl = atan2(-sin(pitch_ctrl),cos(pitch_ctrl))+rs.rand()*pi/16
+                        elif next_z >= map_z[1]:
+                            next_z = map_z[1]
+                            pitch_ctrl = atan2(-sin(pitch_ctrl),cos(pitch_ctrl))+rs.rand()*pi/16
+                        
+                        print(next_loc)
+                        print(next_rot)
                         # calculate vx and vy
-                        vx_ctrl = VELOCITY_XY*sin(yaw_ctrl)
-                        vy_ctrl = VELOCITY_XY*cos(yaw_ctrl)
+                        vx_ctrl = VELOCITY_XY*cos(yaw_ctrl)
+                        vy_ctrl = VELOCITY_XY*sin(yaw_ctrl)
                         vz_ctrl = VELOCITY_Z*sin(pitch_ctrl)
 
-                        next_rot.yaw = 90-180*yaw_ctrl/pi # NED, so X points forwards
-                        next_loc.x = x_ctrl
-                        next_loc.y = y_ctrl
-                        next_loc.z = z_ctrl
-                        spec_ctrl.spectator.set_transform(carla.Transform(next_loc, next_rot)) # it will continuously apply the transformation
+                        next_rot.yaw = degrees(yaw_ctrl) # NED, so X points forwards
+                        next_loc.x = next_x
+                        next_loc.y = next_y
+                        next_loc.z = next_z
+
                     if (weather_counter < TOTAL_WEATHER):
                         capture_data = True
                         if (total_counter > prev_total_counter):
@@ -272,8 +290,8 @@ def main():
                     for i in range(TICK4WEATHER): # Weather seems to take a while to settle...
                         _ = sync_mode.tick(timeout=1/SIM_FPS)
                         sleep(1/SIM_FPS)
-                else:
-                    spec_ctrl.spectator.set_transform(carla.Transform(next_loc, next_rot)) # it will continuously apply the transformation
+                
+                spec_ctrl.spectator.set_transform(carla.Transform(next_loc, next_rot)) # it will continuously apply the transformation
 
                 # Advance the simulation and wait for the data.
                 _ = sync_mode.tick(timeout=1/SIM_FPS) # Make sure the previous transform was executed
