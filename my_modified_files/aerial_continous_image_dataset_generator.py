@@ -27,17 +27,18 @@ with open(__file__,"rb") as f:
 
 # Stuff you should edit before running the script...
 DATA_DIR = 'samples'
-TOWN_NAME = 'Town02'
+TOWN_NAME = 'Town03'
 TOTAL_WEATHER = 1 #15 # 1 to inf... gives the option of saving more than one weather pattern per sample
 TOTAL_SAMPLES = 1000 # -1 for manual sampling
 TICK4WEATHER = 2 # number of times we call the simulation tick to make sure the weather settled...
 YAW_LIMITS = (-90, 90)
 PITCH_LIMITS = (-45, 45)
-Z_LIMITS = (50, 100)
+Z_LIMITS = (65, 100)
 SEED = 42
+NOISY_COLLISIONS = False
 
 VELOCITY_XY = 10 #m/s
-VELOCITY_Z = 1 #m/s
+VELOCITY_Z = 5 #m/s
 MOV_TIME_STEP = 1 #s
 
 SIM_FPS = 10
@@ -65,7 +66,7 @@ FOV = 69
 MAPS = {
         'Town01':   {'x':(10,380),    'y':(10,430)}, 
         'Town02':   {'x':(20,180),   'y':(100,250)}, 
-        'Town03':   {'x':(-120,250), 'y':(-210,190)}, 
+        'Town03':   {'x':(-120,250), 'y':(-210,190), 'z':(65,None)}, 
         'Town04':   {'x':(50,380),   'y':(-370,170)}, 
         'Town05':   {'x':(-290,490), 'y':(-220,280)}, 
         'Town06':   {'x':(-340,690), 'y':(-170,380)}, 
@@ -109,8 +110,8 @@ def main():
         world = client.load_world(load_town) #it takes a while to load, so the client timeout needs to afford that.
 
     try:
-        yaw_ctrl = 45 #rs.randint(YAW_LIMITS[0],YAW_LIMITS[1])+0.5
-        pitch_ctrl = 45 #rs.randint(PITCH_LIMITS[0],PITCH_LIMITS[1])
+        yaw_ctrl = 33 #rs.randint(YAW_LIMITS[0],YAW_LIMITS[1])+0.5
+        pitch_ctrl = 16 #rs.randint(PITCH_LIMITS[0],PITCH_LIMITS[1])
 
         # https://carla.readthedocs.io/en/latest/bp_library/#sensor
         sensors = []
@@ -237,24 +238,30 @@ def main():
                         # update x, y and yaw if collision
                         if next_x <= map_x[0]:
                             next_x = map_x[0]
-                            yaw_ctrl = atan2(sin(yaw_ctrl),-cos(yaw_ctrl))+rs.rand()*pi/8
+                            yaw_ctrl = atan2(sin(yaw_ctrl),-cos(yaw_ctrl))
+                            yaw_ctrl += rs.rand()*pi/8 if NOISY_COLLISIONS else 0
                         elif next_x >= map_x[1]:
                             next_x = map_x[1]
-                            yaw_ctrl = atan2(sin(yaw_ctrl),-cos(yaw_ctrl))+rs.rand()*pi/8
+                            yaw_ctrl = atan2(sin(yaw_ctrl),-cos(yaw_ctrl))
+                            yaw_ctrl += rs.rand()*pi/8 if NOISY_COLLISIONS else 0
 
                         if next_y <= map_y[0]:
                             next_y = map_y[0]
-                            yaw_ctrl = atan2(-sin(yaw_ctrl),cos(yaw_ctrl))+rs.rand()*pi/8
+                            yaw_ctrl = atan2(-sin(yaw_ctrl),cos(yaw_ctrl))
+                            yaw_ctrl += rs.rand()*pi/8 if NOISY_COLLISIONS else 0
                         elif next_y >= map_y[1]:
                             next_y = map_y[1]
-                            yaw_ctrl = atan2(-sin(yaw_ctrl),cos(yaw_ctrl))+rs.rand()*pi/8
+                            yaw_ctrl = atan2(-sin(yaw_ctrl),cos(yaw_ctrl))
+                            yaw_ctrl += rs.rand()*pi/8 if NOISY_COLLISIONS else 0
                         
                         if next_z <= map_z[0]:
                             next_z = map_z[0]
-                            pitch_ctrl = atan2(-sin(pitch_ctrl),cos(pitch_ctrl))+rs.rand()*pi/16
+                            pitch_ctrl = atan2(-sin(pitch_ctrl),cos(pitch_ctrl))
+                            pitch_ctrl += rs.rand()*pi/16 if NOISY_COLLISIONS else 0
                         elif next_z >= map_z[1]:
                             next_z = map_z[1]
-                            pitch_ctrl = atan2(-sin(pitch_ctrl),cos(pitch_ctrl))+rs.rand()*pi/16
+                            pitch_ctrl = atan2(-sin(pitch_ctrl),cos(pitch_ctrl))
+                            pitch_ctrl += rs.rand()*pi/16 if NOISY_COLLISIONS else 0
                         
                         print(next_loc)
                         print(next_rot)
