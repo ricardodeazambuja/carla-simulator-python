@@ -217,16 +217,17 @@ for idx,_ in enumerate(instance_segmentation_samples):
     # Calculate correlation of the drone_patch over the mask.
     # It will blur the landing areas reducing its size to account
     # for the size of the drone.
-    corr_res = signal.correlate2d(img_mono_dilated_inv, drone_patch, boundary='symm', mode='same')
+    # corr_res = signal.correlate2d(img_mono_dilated_inv, drone_patch, boundary='symm', mode='same')
+    corr_res = signal.fftconvolve(img_mono_dilated_inv, drone_patch[::-1], mode='same')
 
     # Normalize it so the good places to land will have value 1
-    corr_res = corr_res/corr_res.max()
+    corr_res = (corr_res-corr_res.min())/corr_res.max()
 
     # All areas with a value smaller than one mean
     # the drone patch didn't fit perfectly.
     # Therefore, we will threshold to make a binary mask
     corr_res_thrs = corr_res.copy()
-    corr_res_thrs[corr_res_thrs<1] = 0
+    corr_res_thrs[corr_res_thrs<(corr_res.max()*0.99)] = 0
 
     mask = (corr_res_thrs*255).astype('uint8')
     # https://docs.opencv.org/4.6.0/d9/d8b/tutorial_py_contours_hierarchy.html
@@ -335,7 +336,8 @@ for idx,_ in enumerate(instance_segmentation_samples):
             final_contour += individual_contour
 
     drone_patch = create_drone_patch(*(DRONE_SIZE_MULT*drone_patch_shape))
-    final_corr = signal.correlate2d(final_contour, drone_patch, boundary='symm', mode='same')
+    # final_corr = signal.correlate2d(final_contour, drone_patch, boundary='symm', mode='same')
+    final_corr = signal.fftconvolve(final_contour, drone_patch[::-1], mode='same')
     final_corr -= final_corr.min()
     final_corr /= final_corr.max()
     final_contour *= final_corr
