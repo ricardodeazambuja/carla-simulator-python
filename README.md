@@ -16,9 +16,9 @@ Press ENTER to kill the simulator (it takes some seconds until it dies...).
 docker cp carla-container:/home/carla/PythonAPI .
 ```
 
-## Considering your base environment is py3.7:
+## Create a new conda environment (Python 3.7):
 ```
-conda create --name carla-simulator --clone base
+conda create --name carla-simulator python=3.7
 ```
 
 ```
