@@ -1,7 +1,7 @@
 #!/bin/sh
 
-echo "Starting avahi..."
-sudo avahi-daemon -D
+# echo "Starting avahi..."
+# sudo avahi-daemon -D
 
 unset SDL_VIDEODRIVER
 
