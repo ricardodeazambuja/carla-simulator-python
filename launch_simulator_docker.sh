@@ -11,5 +11,4 @@ docker run --rm -it \
 --network=host \
 --user carla \
 --gpus 0 \
-ricardodeazambuja/carlasim:0.9.13_headless bash
-./launch_headless.sh
+ricardodeazambuja/carlasim:0.9.13_headless ./launch_headless.sh
