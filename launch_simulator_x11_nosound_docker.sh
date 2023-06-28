@@ -6,10 +6,10 @@ avahi-publish -a -R carla-container.local ${tmp_array[0]} &>/dev/null &
 export AVAHI_PUB_PID=$!
 trap 'echo Killing avahi-publish with PID $AVAHI_PUB_PID && kill $AVAHI_PUB_PID' EXIT
 
-XAUTHORITY=
+XAUTHORITY_DOCKER=
 FILE=$HOME/.Xauthority
 if [ -f "$FILE" ]; then
-    XAUTHORITY="--mount type=bind,source=/home/$USER/.Xauthority,target=/home/carla/.Xauthority"
+    XAUTHORITY_DOCKER="--mount type=bind,source=/home/$USER/.Xauthority,target=/home/carla/.Xauthority"
 else 
     echo "If you are launching this through a remote computer connected using ssh -X, it won't work because you don't have $FILE."
     echo "Just use 'touch ~/.Xauthority' and log out/in and it will be fine."
@@ -22,6 +22,6 @@ docker run --rm --gpus 'all,"capabilities=graphics,utility,display,video,compute
 --user $(id -u):$(id -g) --group-add sudo \
 --env=DISPLAY=$DISPLAY --env=QT_X11_NO_MITSHM=1 \
 --volume /tmp/.X11-unix:/tmp/.X11-unix \
-$XAUTHORITY \
+$XAUTHORITY_DOCKER \
 carlasim:$USER \
 ./launch_nosound.sh -nosound \
